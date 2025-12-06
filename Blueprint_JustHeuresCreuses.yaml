@@ -1,14 +1,11 @@
 blueprint:
-  name: Optimiseur heures creuses (objectif énergie + solaire)
-  description: >
-    Allume un appareil uniquement pendant les heures creuses,
-    mais seulement si la production solaire prévue dépasse l'objectif énergie.
-    Arrête automatiquement lorsque l'énergie quotidienne cible est atteinte.
+  name: "Optimiseur heures creuses (objectif énergie + solaire)"
+  description: "Allume un appareil uniquement pendant les heures creuses, mais seulement si la production solaire prévue dépasse l'objectif énergie. Arrête automatiquement lorsque l'énergie quotidienne cible est atteinte."
   domain: automation
 
   input:
     equipment_switch:
-      name: Appareil à contrôler
+      name: "Appareil à contrôler"
       selector:
         entity:
           domain:
@@ -16,24 +13,24 @@ blueprint:
             - input_boolean
 
     energy_sensor:
-      name: Capteur d'énergie cumulée (kWh)
-      description: Capteur cumulatif provenant de PowerCalc (state_class: total_increasing).
+      name: "Capteur d'énergie cumulée (kWh)"
+      description: "Capteur cumulatif provenant de PowerCalc (state_class: total_increasing)."
       selector:
         entity:
           domain: sensor
           device_class: energy
 
     production_forecast:
-      name: Production solaire prévue (kWh)
-      description: Estimation journalière via Solcast / SolarForecast / PVForecast.
+      name: "Production solaire prévue (kWh)"
+      description: "Estimation journalière via Solcast / SolarForecast / PVForecast."
       selector:
         entity:
           domain: sensor
           device_class: energy
 
     energy_target:
-      name: Énergie journalière à atteindre (kWh)
-      description: Exemple : 3 kWh pour un chauffe-eau 100L
+      name: "Énergie journalière à atteindre (kWh)"
+      description: "Exemple : 3 kWh pour un chauffe-eau 100L."
       default: 3
       selector:
         number:
@@ -42,12 +39,12 @@ blueprint:
           step: 0.1
 
     hc_start:
-      name: Début des heures creuses
+      name: "Début des heures creuses"
       selector:
         time: {}
 
     hc_end:
-      name: Fin des heures creuses
+      name: "Fin des heures creuses"
       selector:
         time: {}
 
@@ -69,20 +66,18 @@ trigger:
     entity_id: !input production_forecast
 
 variables:
-  # Stockage des entités !input dans des variables
   switch_entity: !input equipment_switch
   energy_sensor_entity: !input energy_sensor
   production_forecast_entity: !input production_forecast
   target: !input energy_target
 
-  # Templates sécurisés
   current_energy: "{{ states(energy_sensor_entity) | float(0) }}"
   forecast: "{{ states(production_forecast_entity) | float(0) }}"
 
 action:
   - choose:
 
-      # 1️⃣ Début des heures creuses → allumage si besoin
+      # 1️⃣ Début des heures creuses → allumage si production prévue >= cible et énergie pas atteinte
       - conditions:
           - condition: template
             value_template: "{{ trigger.platform == 'time' and trigger.now.strftime('%H:%M') == trigger.at }}"
