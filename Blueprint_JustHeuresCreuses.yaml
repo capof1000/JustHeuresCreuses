@@ -79,18 +79,17 @@ trigger:
 # -------------------------------------------------------------------
 
 variables:
+  # stocker les entités !input dans des variables brutes
   switch_entity: !input equipment_switch
-  energy_sensor: !input energy_sensor
+  energy_sensor_entity: !input energy_sensor
+  production_forecast_entity: !input production_forecast
+  target: !input energy_target
   hc_start: !input hc_start
   hc_end: !input hc_end
 
-  forecast: >
-    {{ states(!input production_forecast) | float(0) }}
-
-  target: !input energy_target
-
-  current_energy: >
-    {{ states(energy_sensor) | float(0) }}
+  # templates sécurisés utilisant uniquement les variables
+  current_energy: "{{ states(energy_sensor_entity) | float(0) }}"
+  forecast: "{{ states(production_forecast_entity) | float(0) }}"
 
 # -------------------------------------------------------------------
 # ACTIONS
@@ -100,38 +99,35 @@ action:
   - choose:
 
       # ------------------------------------------------------------
-      # 1️⃣ DÉBUT HC → allumage uniquement si :
-      #   - production solaire prévue >= cible
-      #   - énergie pas encore atteinte
+      # 1️⃣ Début des heures creuses → allumage si :
+      #    - production solaire prévue >= cible
+      #    - énergie pas encore atteinte
       # ------------------------------------------------------------
       - conditions:
           - condition: time
             at: !input hc_start
           - condition: template
-            value_template: >
-              {{ forecast >= target }}
+            value_template: "{{ forecast >= target }}"
           - condition: template
-            value_template: >
-              {{ current_energy < target }}
+            value_template: "{{ current_energy < target }}"
         sequence:
           - service: homeassistant.turn_on
             target:
               entity_id: "{{ switch_entity }}"
 
       # ------------------------------------------------------------
-      # 2️⃣ ARRÊT SI ÉNERGIE CIBLE ATTEINTE
+      # 2️⃣ Arrêt si énergie cible atteinte
       # ------------------------------------------------------------
       - conditions:
           - condition: template
-            value_template: >
-              {{ current_energy >= target }}
+            value_template: "{{ current_energy >= target }}"
         sequence:
           - service: homeassistant.turn_off
             target:
               entity_id: "{{ switch_entity }}"
 
       # ------------------------------------------------------------
-      # 3️⃣ FIN DES HC → arrêter systématiquement
+      # 3️⃣ Fin des heures creuses → arrêt systématique
       # ------------------------------------------------------------
       - conditions:
           - condition: time
