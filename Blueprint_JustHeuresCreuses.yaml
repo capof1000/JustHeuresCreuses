@@ -1,41 +1,34 @@
 blueprint:
-  name: Optimiseur intelligent d'appareil (solaire + heures creuses)
-  description: |
-    Optimise intelligemment la consommation d’un appareil en priorité solaire.
-    Ne consomme en heures creuses que si nécessaire selon l'énergie cible journalière.
+  name: Optimiseur heures creuses (avec objectif énergie)
+  description: >
+    Allume un appareil uniquement pendant les heures creuses, 
+    avec arrêt automatique lorsque l'énergie quotidienne cible est atteinte.
+    Utilise également une estimation de production solaire pour ajuster la décision.
   domain: automation
 
   input:
 
-    appareil_switch:
-      name: Interrupteur de l'appareil
+    equipment_switch:
+      name: Appareil à contrôler
       selector:
         entity:
-          domain: switch
+          domain:
+            - switch
+            - input_boolean
 
-    appareil_energy:
-      name: Capteur Energy total_increasing (kWh)
+    energy_sensor:
+      name: Capteur d'énergie (PowerCalc)
+      description: >
+        Capteur cumulatif en kWh généré par PowerCalc (state_class: total_increasing).
       selector:
         entity:
           domain: sensor
           device_class: energy
 
-    appareil_power:
-      name: Puissance instantanée de l'appareil (W)
-      selector:
-        entity:
-          domain: sensor
-          device_class: power
-
-    surplus:
-      name: Surplus solaire (W)
-      selector:
-        entity:
-          domain: sensor
-          device_class: power
-
-    estimation_jour:
-      name: Estimation de production solaire du jour (kWh)
+    production_forecast:
+      name: Production solaire prévue (kWh)
+      description: >
+        Estimation de production solaire journalière (ex : Solcast, SolarForecast).
       selector:
         entity:
           domain: sensor
@@ -43,74 +36,79 @@ blueprint:
 
     energy_target:
       name: Energie journalière à atteindre (kWh)
-      description: Exemple : 3 kWh pour un chauffe-eau 100L
+      description: "Exemple : 3 kWh pour un chauffe-eau 100L"
       default: 3
       selector:
         number:
           min: 0.5
-          max: 10
+          max: 15
           step: 0.1
 
-    heure_debut_hc:
+    hc_start:
       name: Début des heures creuses
       selector:
         time: {}
 
-    heure_fin_hc:
+    hc_end:
       name: Fin des heures creuses
       selector:
         time: {}
 
 mode: restart
-max_exceeded: silent
+
+# -------------------------------------------------------------------
+# TRIGGERS
+# -------------------------------------------------------------------
 
 trigger:
-  - platform: time_pattern
-    minutes: "/1"
+
+  # Début des heures creuses
+  - platform: time
+    at: !input hc_start
+
+  # Fin des heures creuses
+  - platform: time
+    at: !input hc_end
+
+  # Mise à jour de l'énergie consommée
+  - platform: state
+    entity_id: !input energy_sensor
+
+# -------------------------------------------------------------------
+# VARIABLES
+# -------------------------------------------------------------------
 
 variables:
-  sw: !input appareil_switch
-  e_now: "{{ states(!input appareil_energy) | float(0) }}"
-  p_now: "{{ states(!input appareil_power) | float(0) }}"
-  surplus: "{{ states(!input surplus) | float(0) }}"
-  estimation: "{{ states(!input estimation_jour) | float(0) }}"
+  energy_sensor: !input energy_sensor
+  switch_entity: !input equipment_switch
+  forecast: "{{ states( !input production_forecast ) | float(0) }}"
   target: !input energy_target
-  hc_start: !input heure_debut_hc
-  hc_end: !input heure_fin_hc
+  current_energy: "{{ states(energy_sensor) | float(0) }}"
+  hc_start: !input hc_start
+  hc_end: !input hc_end
 
-  energy_remaining: "{{ (target - e_now) | max(0) }}"
+# -------------------------------------------------------------------
+# ACTION
+# -------------------------------------------------------------------
 
 action:
 
   - choose:
 
-      # 1) Énergie gratuite : surplus suffisant
+      # --------------------------------------------------------------------
+      # 1️⃣ Début heures creuses → allumer (si besoin)
+      # --------------------------------------------------------------------
+      - conditions:
+          - condition: time
+            at: !input hc_start
+        sequence:
+          - service: homeassistant.turn_on
+            target:
+              entity_id: "{{ switch_entity }}"
+
+      # --------------------------------------------------------------------
+      # 2️⃣ Arrêt si énergie cible atteinte (évite surconsommation)
+      # --------------------------------------------------------------------
       - conditions:
           - condition: template
-            value_template: "{{ surplus > p_now }}"
-        sequence:
-          - service: switch.turn_on
-            target:
-              entity_id: "{{ sw }}"
-
-      # 2) Pas assez de soleil → mais en heures creuses
-      - conditions:
-          - condition: and
-            conditions:
-              - condition: time
-                after: "{{ hc_start }}"
-                before: "{{ hc_end }}"
-              - condition: template
-                value_template: >
-                  {{ energy_remaining > estimation }}
-                # On chauffe en HC seulement si :
-                # énergie restante > production solaire prévue
-        sequence:
-          - service: switch.turn_on
-            target:
-              entity_id: "{{ sw }}"
-
-    default:
-      - service: switch.turn_off
-        target:
-          entity_id: "{{ sw }}"
+            value_template: "{{ current_e
