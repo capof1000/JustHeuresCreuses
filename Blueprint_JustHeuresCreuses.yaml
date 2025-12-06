@@ -1,0 +1,75 @@
+blueprint:
+  name: Cumulus Heures Creuses par horaire
+  description: >
+    Allume le cumulus uniquement pendant les heures creuses définies par un horaire
+    de début et de fin, et l'éteint à la fin ou si le cumulus est déjà chaud.
+  domain: automation
+
+  input:
+    equipment_switch:
+      name: Équipement à contrôler
+      description: Switch pour le cumulus
+      selector:
+        entity:
+          domain: switch
+
+    offpeak_start:
+      name: Début des heures creuses
+      description: Heure à laquelle commencent les heures creuses (HH:MM)
+      selector:
+        time:
+
+    offpeak_end:
+      name: Fin des heures creuses
+      description: Heure à laquelle se terminent les heures creuses (HH:MM)
+      selector:
+        time:
+
+    cumulus_ready_sensor:
+      name: Cumulus chaud (optionnel)
+      description: Capteur indiquant si le cumulus est déjà chaud
+      default: []
+      selector:
+        entity:
+          domain: sensor
+
+trigger:
+  # Vérifie chaque minute
+  - platform: time_pattern
+    minutes: "/1"
+
+variables:
+  now_time: "{{ now().time() }}"
+  start_time: "{{ states('input_datetime.' ~ offpeak_start.split('.')[0]) | as_datetime | map(attribute='time') }}"
+  end_time: "{{ states('input_datetime.' ~ offpeak_end.split('.')[0]) | as_datetime | map(attribute='time') }}"
+
+condition: []
+
+action:
+  - choose:
+      # Allumer le cumulus pendant les heures creuses si pas déjà chaud
+      - conditions:
+          - condition: template
+            value_template: >
+              {% set in_offpeak = (start_time < end_time and now_time >= start_time and now_time <= end_time) or
+                                    (start_time > end_time and (now_time >= start_time or now_time <= end_time)) %}
+              {% set cumulus_ok = cumulus_ready_sensor == [] or states(cumulus_ready_sensor) | bool == false %}
+              {{ in_offpeak and cumulus_ok }}
+        sequence:
+          - service: homeassistant.turn_on
+            target:
+              entity_id: !input equipment_switch
+
+      # Éteindre le cumulus si hors heures creuses
+      - conditions:
+          - condition: template
+            value_template: >
+              {% set in_offpeak = (start_time < end_time and now_time >= start_time and now_time <= end_time) or
+                                    (start_time > end_time and (now_time >= start_time or now_time <= end_time)) %}
+              {{ not in_offpeak }}
+        sequence:
+          - service: homeassistant.turn_off
+            target:
+              entity_id: !input equipment_switch
+
+mode: restart
