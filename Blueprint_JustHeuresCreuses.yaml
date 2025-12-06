@@ -7,7 +7,6 @@ blueprint:
   domain: automation
 
   input:
-
     equipment_switch:
       name: Appareil à contrôler
       selector:
@@ -56,27 +55,18 @@ blueprint:
 
 mode: restart
 
-# -------------------------------------------------------------------
-# TRIGGERS
-# -------------------------------------------------------------------
-
 trigger:
-
-  - platform: time
-    at: !input hc_start
-
-  - platform: time
-    at: !input hc_end
-
   - platform: state
     entity_id: !input energy_sensor
 
   - platform: state
     entity_id: !input production_forecast
 
-# -------------------------------------------------------------------
-# VARIABLES
-# -------------------------------------------------------------------
+  - platform: time
+    at: !input hc_start
+
+  - platform: time
+    at: !input hc_end
 
 variables:
   # stocker les entités !input dans des variables brutes
@@ -91,10 +81,6 @@ variables:
   current_energy: "{{ states(energy_sensor_entity) | float(0) }}"
   forecast: "{{ states(production_forecast_entity) | float(0) }}"
 
-# -------------------------------------------------------------------
-# ACTIONS
-# -------------------------------------------------------------------
-
 action:
   - choose:
 
@@ -104,8 +90,8 @@ action:
       #    - énergie pas encore atteinte
       # ------------------------------------------------------------
       - conditions:
-          - condition: time
-            at: !input hc_start
+          - condition: template
+            value_template: "{{ now().strftime('%H:%M') == hc_start }}"
           - condition: template
             value_template: "{{ forecast >= target }}"
           - condition: template
@@ -130,8 +116,8 @@ action:
       # 3️⃣ Fin des heures creuses → arrêt systématique
       # ------------------------------------------------------------
       - conditions:
-          - condition: time
-            at: !input hc_end
+          - condition: template
+            value_template: "{{ now().strftime('%H:%M') == hc_end }}"
         sequence:
           - service: homeassistant.turn_off
             target:
