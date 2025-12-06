@@ -1,9 +1,9 @@
 blueprint:
-  name: Optimiseur heures creuses (avec objectif énergie)
+  name: Optimiseur heures creuses (avec objectif énergie + solaire)
   description: >
-    Allume un appareil uniquement pendant les heures creuses, 
-    avec arrêt automatique lorsque l'énergie quotidienne cible est atteinte.
-    Utilise également une estimation de production solaire pour ajuster la décision.
+    Allume un appareil uniquement pendant les heures creuses,
+    mais seulement si la production solaire prévue dépasse l'objectif énergie.
+    Arrête automatiquement lorsque l'énergie quotidienne cible est atteinte.
   domain: automation
 
   input:
@@ -17,9 +17,9 @@ blueprint:
             - input_boolean
 
     energy_sensor:
-      name: Capteur d'énergie (PowerCalc)
+      name: Capteur d'énergie cumulée (kWh)
       description: >
-        Capteur cumulatif en kWh généré par PowerCalc (state_class: total_increasing).
+        Capteur cumulatif provenant de PowerCalc (state_class: total_increasing).
       selector:
         entity:
           domain: sensor
@@ -28,15 +28,15 @@ blueprint:
     production_forecast:
       name: Production solaire prévue (kWh)
       description: >
-        Estimation de production solaire journalière (ex : Solcast, SolarForecast).
+        Estimation journalière via Solcast / SolarForecast / PVForecast.
       selector:
         entity:
           domain: sensor
           device_class: energy
 
     energy_target:
-      name: Energie journalière à atteindre (kWh)
-      description: "Exemple : 3 kWh pour un chauffe-eau 100L"
+      name: Énergie journalière à atteindre (kWh)
+      description: "Exemple : 3 kWh pour un chauffe-eau 100L."
       default: 3
       selector:
         number:
@@ -62,53 +62,81 @@ mode: restart
 
 trigger:
 
-  # Début des heures creuses
   - platform: time
     at: !input hc_start
 
-  # Fin des heures creuses
   - platform: time
     at: !input hc_end
 
-  # Mise à jour de l'énergie consommée
   - platform: state
     entity_id: !input energy_sensor
+
+  - platform: state
+    entity_id: !input production_forecast
 
 # -------------------------------------------------------------------
 # VARIABLES
 # -------------------------------------------------------------------
 
 variables:
-  energy_sensor: !input energy_sensor
   switch_entity: !input equipment_switch
-  forecast: "{{ states( !input production_forecast ) | float(0) }}"
-  target: !input energy_target
-  current_energy: "{{ states(energy_sensor) | float(0) }}"
+  energy_sensor: !input energy_sensor
   hc_start: !input hc_start
   hc_end: !input hc_end
 
+  forecast: >
+    {{ states(!input production_forecast) | float(0) }}
+
+  target: !input energy_target
+
+  current_energy: >
+    {{ states(energy_sensor) | float(0) }}
+
 # -------------------------------------------------------------------
-# ACTION
+# ACTIONS
 # -------------------------------------------------------------------
 
 action:
-
   - choose:
 
-      # --------------------------------------------------------------------
-      # 1️⃣ Début heures creuses → allumer (si besoin)
-      # --------------------------------------------------------------------
+      # ------------------------------------------------------------
+      # 1️⃣ DÉBUT HC → allumage uniquement si :
+      #   - production solaire prévue >= cible
+      #   - énergie pas encore atteinte
+      # ------------------------------------------------------------
       - conditions:
           - condition: time
             at: !input hc_start
+          - condition: template
+            value_template: >
+              {{ forecast >= target }}
+          - condition: template
+            value_template: >
+              {{ current_energy < target }}
         sequence:
           - service: homeassistant.turn_on
             target:
               entity_id: "{{ switch_entity }}"
 
-      # --------------------------------------------------------------------
-      # 2️⃣ Arrêt si énergie cible atteinte (évite surconsommation)
-      # --------------------------------------------------------------------
+      # ------------------------------------------------------------
+      # 2️⃣ ARRÊT SI ÉNERGIE CIBLE ATTEINTE
+      # ------------------------------------------------------------
       - conditions:
           - condition: template
-            value_template: "{{ current_e
+            value_template: >
+              {{ current_energy >= target }}
+        sequence:
+          - service: homeassistant.turn_off
+            target:
+              entity_id: "{{ switch_entity }}"
+
+      # ------------------------------------------------------------
+      # 3️⃣ FIN DES HC → arrêter systématiquement
+      # ------------------------------------------------------------
+      - conditions:
+          - condition: time
+            at: !input hc_end
+        sequence:
+          - service: homeassistant.turn_off
+            target:
+              entity_id: "{{ switch_entity }}"
