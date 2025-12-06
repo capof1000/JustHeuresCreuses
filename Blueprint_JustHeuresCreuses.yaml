@@ -1,6 +1,6 @@
 blueprint:
-  name: "Optimiseur heures creuses (objectif énergie + solaire)"
-  description: "Allume un appareil uniquement pendant les heures creuses, mais seulement si la production solaire prévue dépasse l'objectif énergie. Arrête automatiquement lorsque l'énergie quotidienne cible est atteinte."
+  name: "Optimiseur heures creuses (objectif énergie + solaire, check continu)"
+  description: "Allume un appareil uniquement pendant les heures creuses et si la production solaire prévue dépasse l'objectif énergie. Arrête automatiquement lorsque l'énergie journalière cible est atteinte. L'automatisation se vérifie chaque minute."
   domain: automation
 
   input:
@@ -51,17 +51,13 @@ blueprint:
 mode: restart
 
 trigger:
-  # Début et fin des heures creuses
-  - platform: time
-    at: !input hc_start
-  - platform: time
-    at: !input hc_end
+  # Déclenchement toutes les minutes
+  - platform: time_pattern
+    minutes: "/1"
 
-  # Mise à jour de l'énergie consommée
+  # Mise à jour de l'énergie consommée ou prévision solaire
   - platform: state
     entity_id: !input energy_sensor
-
-  # Mise à jour de la prévision solaire
   - platform: state
     entity_id: !input production_forecast
 
@@ -70,17 +66,21 @@ variables:
   energy_sensor_entity: !input energy_sensor
   production_forecast_entity: !input production_forecast
   target: !input energy_target
+  hc_start_time: !input hc_start
+  hc_end_time: !input hc_end
 
   current_energy: "{{ states(energy_sensor_entity) | float(0) }}"
   forecast: "{{ states(production_forecast_entity) | float(0) }}"
+  now_time: "{{ now().strftime('%H:%M') }}"
 
 action:
   - choose:
 
-      # 1️⃣ Début des heures creuses → allumage si production prévue >= cible et énergie pas atteinte
+      # 1️⃣ Vérifie si nous sommes dans les heures creuses
       - conditions:
           - condition: template
-            value_template: "{{ trigger.platform == 'time' and trigger.now.strftime('%H:%M') == trigger.at }}"
+            value_template: >
+              {{ hc_start_time <= now_time <= hc_end_time }}
           - condition: template
             value_template: "{{ forecast >= target }}"
           - condition: template
@@ -99,10 +99,11 @@ action:
             target:
               entity_id: "{{ switch_entity }}"
 
-      # 3️⃣ Fin des heures creuses → arrêt systématique
+      # 3️⃣ Hors heures creuses → arrêt systématique
       - conditions:
           - condition: template
-            value_template: "{{ trigger.platform == 'time' and trigger.now.strftime('%H:%M') == trigger.at }}"
+            value_template: >
+              {{ now_time < hc_start_time or now_time > hc_end_time }}
         sequence:
           - service: homeassistant.turn_off
             target:
