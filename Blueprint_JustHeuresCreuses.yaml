@@ -1,6 +1,6 @@
 blueprint:
-  name: "Optimiseur heures creuses (objectif énergie + solaire, check continu)"
-  description: "Allume un appareil uniquement pendant les heures creuses et si la production solaire prévue dépasse l'objectif énergie. Arrête automatiquement lorsque l'énergie journalière cible est atteinte. L'automatisation se vérifie chaque minute."
+  name: "Optimiseur heures creuses (objectif énergie + solaire avec capteur binaire)"
+  description: "Allume un appareil uniquement pendant les heures creuses définies par un capteur binaire. Arrêt automatique lorsque l'énergie journalière cible est atteinte et blocage si la production solaire prévue est insuffisante."
   domain: automation
 
   input:
@@ -38,49 +38,50 @@ blueprint:
           max: 15
           step: 0.1
 
-    hc_start:
-      name: "Début des heures creuses"
+    hc_binary_sensor:
+      name: "Capteur binaire des heures creuses"
+      description: "Input boolean ou binary_sensor qui vaut ON pendant les heures creuses."
       selector:
-        time: {}
-
-    hc_end:
-      name: "Fin des heures creuses"
-      selector:
-        time: {}
+        entity:
+          domain:
+            - binary_sensor
+            - input_boolean
 
 mode: restart
 
 trigger:
-  # Déclenchement toutes les minutes
+  # Déclenche toutes les minutes pour vérifier l'état et l'énergie
   - platform: time_pattern
     minutes: "/1"
 
-  # Mise à jour de l'énergie consommée ou prévision solaire
+  # Déclenchement à chaque changement du capteur HC
   - platform: state
-    entity_id: !input energy_sensor
+    entity_id: !input hc_binary_sensor
+
+  # Déclenchement à chaque changement du capteur d'énergie ou prévision solaire
   - platform: state
-    entity_id: !input production_forecast
+    entity_id:
+      - !input energy_sensor
+      - !input production_forecast
 
 variables:
   switch_entity: !input equipment_switch
   energy_sensor_entity: !input energy_sensor
   production_forecast_entity: !input production_forecast
   target: !input energy_target
-  hc_start_time: !input hc_start
-  hc_end_time: !input hc_end
+  hc_sensor: !input hc_binary_sensor
 
   current_energy: "{{ states(energy_sensor_entity) | float(0) }}"
   forecast: "{{ states(production_forecast_entity) | float(0) }}"
-  now_time: "{{ now().strftime('%H:%M') }}"
+  hc_state: "{{ states(hc_sensor) }}"
 
 action:
   - choose:
 
-      # 1️⃣ Vérifie si nous sommes dans les heures creuses
+      # 1️⃣ Heures creuses actives → allumage si production >= cible et énergie pas atteinte
       - conditions:
           - condition: template
-            value_template: >
-              {{ hc_start_time <= now_time <= hc_end_time }}
+            value_template: "{{ hc_state == 'on' }}"
           - condition: template
             value_template: "{{ forecast >= target }}"
           - condition: template
@@ -102,8 +103,7 @@ action:
       # 3️⃣ Hors heures creuses → arrêt systématique
       - conditions:
           - condition: template
-            value_template: >
-              {{ now_time < hc_start_time or now_time > hc_end_time }}
+            value_template: "{{ hc_state != 'on' }}"
         sequence:
           - service: homeassistant.turn_off
             target:
