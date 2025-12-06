@@ -1,5 +1,5 @@
 blueprint:
-  name: Optimiseur heures creuses (avec objectif énergie + solaire)
+  name: Optimiseur heures creuses (objectif énergie + solaire)
   description: >
     Allume un appareil uniquement pendant les heures creuses,
     mais seulement si la production solaire prévue dépasse l'objectif énergie.
@@ -17,8 +17,7 @@ blueprint:
 
     energy_sensor:
       name: Capteur d'énergie cumulée (kWh)
-      description: >
-        Capteur cumulatif provenant de PowerCalc (state_class: total_increasing).
+      description: Capteur cumulatif provenant de PowerCalc (state_class: total_increasing).
       selector:
         entity:
           domain: sensor
@@ -26,8 +25,7 @@ blueprint:
 
     production_forecast:
       name: Production solaire prévue (kWh)
-      description: >
-        Estimation journalière via Solcast / SolarForecast / PVForecast.
+      description: Estimation journalière via Solcast / SolarForecast / PVForecast.
       selector:
         entity:
           domain: sensor
@@ -35,7 +33,7 @@ blueprint:
 
     energy_target:
       name: Énergie journalière à atteindre (kWh)
-      description: "Exemple : 3 kWh pour un chauffe-eau 100L."
+      description: Exemple : 3 kWh pour un chauffe-eau 100L
       default: 3
       selector:
         number:
@@ -56,42 +54,38 @@ blueprint:
 mode: restart
 
 trigger:
-  - platform: state
-    entity_id: !input energy_sensor
-
-  - platform: state
-    entity_id: !input production_forecast
-
+  # Début et fin des heures creuses
   - platform: time
     at: !input hc_start
-
   - platform: time
     at: !input hc_end
 
+  # Mise à jour de l'énergie consommée
+  - platform: state
+    entity_id: !input energy_sensor
+
+  # Mise à jour de la prévision solaire
+  - platform: state
+    entity_id: !input production_forecast
+
 variables:
-  # stocker les entités !input dans des variables brutes
+  # Stockage des entités !input dans des variables
   switch_entity: !input equipment_switch
   energy_sensor_entity: !input energy_sensor
   production_forecast_entity: !input production_forecast
   target: !input energy_target
-  hc_start: !input hc_start
-  hc_end: !input hc_end
 
-  # templates sécurisés utilisant uniquement les variables
+  # Templates sécurisés
   current_energy: "{{ states(energy_sensor_entity) | float(0) }}"
   forecast: "{{ states(production_forecast_entity) | float(0) }}"
 
 action:
   - choose:
 
-      # ------------------------------------------------------------
-      # 1️⃣ Début des heures creuses → allumage si :
-      #    - production solaire prévue >= cible
-      #    - énergie pas encore atteinte
-      # ------------------------------------------------------------
+      # 1️⃣ Début des heures creuses → allumage si besoin
       - conditions:
           - condition: template
-            value_template: "{{ now().strftime('%H:%M') == hc_start }}"
+            value_template: "{{ trigger.platform == 'time' and trigger.now.strftime('%H:%M') == trigger.at }}"
           - condition: template
             value_template: "{{ forecast >= target }}"
           - condition: template
@@ -101,9 +95,7 @@ action:
             target:
               entity_id: "{{ switch_entity }}"
 
-      # ------------------------------------------------------------
       # 2️⃣ Arrêt si énergie cible atteinte
-      # ------------------------------------------------------------
       - conditions:
           - condition: template
             value_template: "{{ current_energy >= target }}"
@@ -112,12 +104,10 @@ action:
             target:
               entity_id: "{{ switch_entity }}"
 
-      # ------------------------------------------------------------
       # 3️⃣ Fin des heures creuses → arrêt systématique
-      # ------------------------------------------------------------
       - conditions:
           - condition: template
-            value_template: "{{ now().strftime('%H:%M') == hc_end }}"
+            value_template: "{{ trigger.platform == 'time' and trigger.now.strftime('%H:%M') == trigger.at }}"
         sequence:
           - service: homeassistant.turn_off
             target:
