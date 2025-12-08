@@ -1,110 +1,70 @@
 blueprint:
-  name: "Optimiseur heures creuses (objectif énergie + solaire avec capteur binaire)"
-  description: "Allume un appareil uniquement pendant les heures creuses définies par un capteur binaire. Arrêt automatique lorsque l'énergie journalière cible est atteinte et blocage si la production solaire prévue est insuffisante."
+  name: Gestion intelligente de charge VE + Modes externes
+  description: >
+    Contrôle la charge d’un véhicule selon plusieurs modes (Auto, Solaire, Heures Creuses,
+    Forcé) avec possibilité de changer le mode depuis une entité externe.
   domain: automation
 
   input:
-    equipment_switch:
-      name: "Appareil à contrôler"
+    mode_selector:
+      name: "Sélecteur de mode"
+      description: "Input_select permettant de choisir le mode de charge"
       selector:
         entity:
-          domain:
-            - switch
-            - input_boolean
+          domain: input_select
 
-    energy_sensor:
-      name: "Capteur d'énergie cumulée (kWh)"
-      description: "Capteur cumulatif provenant de PowerCalc (state_class: total_increasing)."
+    charger_switch:
+      name: "Chargeur (switch)"
       selector:
         entity:
-          domain: sensor
-          device_class: energy
+          domain: switch
 
-    production_forecast:
-      name: "Production solaire prévue (kWh)"
-      description: "Estimation journalière via Solcast / SolarForecast / PVForecast."
+    net_power:
+      name: "Puissance nette (W)"
+      description: "Production - consommation (valeur positive = surplus)"
       selector:
         entity:
           domain: sensor
-          device_class: energy
+          device_class: power
 
-    energy_target:
-      name: "Énergie journalière à atteindre (kWh)"
-      description: "Exemple : 3 kWh pour un chauffe-eau 100L."
-      default: 3
+    tesla_soc:
+      name: "% de batterie Tesla (%)"
+      selector:
+        entity:
+          domain: sensor
+          device_class: battery
+
+    min_soc:
+      name: "SOC minimum (%)"
+      default: 20
       selector:
         number:
-          min: 0.5
-          max: 15
-          step: 0.1
+          min: 0
+          max: 100
+          step: 1
 
-    hc_binary_sensor:
-      name: "Capteur binaire des heures creuses"
-      description: "Input boolean ou binary_sensor qui vaut ON pendant les heures creuses."
+    max_soc:
+      name: "SOC maximum (%)"
+      default: 80
       selector:
-        entity:
-          domain:
-            - binary_sensor
-            - input_boolean
+        number:
+          min: 0
+          max: 100
+          step: 1
 
-mode: restart
+    surplus_watts:
+      name: "Surplus nécessaire pour charger (W)"
+      default: 1500
+      selector:
+        number:
+          min: 0
+          max: 5000
+          step: 100
 
-trigger:
-  # Déclenche toutes les minutes pour vérifier l'état et l'énergie
-  - platform: time_pattern
-    minutes: "/1"
-
-  # Déclenchement à chaque changement du capteur HC
-  - platform: state
-    entity_id: !input hc_binary_sensor
-
-  # Déclenchement à chaque changement du capteur d'énergie ou prévision solaire
-  - platform: state
-    entity_id:
-      - !input energy_sensor
-      - !input production_forecast
-
-variables:
-  switch_entity: !input equipment_switch
-  energy_sensor_entity: !input energy_sensor
-  production_forecast_entity: !input production_forecast
-  target: !input energy_target
-  hc_sensor: !input hc_binary_sensor
-
-  current_energy: "{{ states(energy_sensor_entity) | float(0) }}"
-  forecast: "{{ states(production_forecast_entity) | float(0) }}"
-  hc_state: "{{ states(hc_sensor) }}"
-
-action:
-  - choose:
-
-      # 1️⃣ Heures creuses actives → allumage si production >= cible et énergie pas atteinte
-      - conditions:
-          - condition: template
-            value_template: "{{ hc_state == 'on' }}"
-          - condition: template
-            value_template: "{{ forecast >= target }}"
-          - condition: template
-            value_template: "{{ current_energy < target }}"
-        sequence:
-          - service: homeassistant.turn_on
-            target:
-              entity_id: "{{ switch_entity }}"
-
-      # 2️⃣ Arrêt si énergie cible atteinte
-      - conditions:
-          - condition: template
-            value_template: "{{ current_energy >= target }}"
-        sequence:
-          - service: homeassistant.turn_off
-            target:
-              entity_id: "{{ switch_entity }}"
-
-      # 3️⃣ Hors heures creuses → arrêt systématique
-      - conditions:
-          - condition: template
-            value_template: "{{ hc_state != 'on' }}"
-        sequence:
-          - service: homeassistant.turn_off
-            target:
-              entity_id: "{{ switch_entity }}"
+    off_delay:
+      name: "Délai avant arrêt (s)"
+      default: 30
+      selector:
+        number:
+          min: 0
+          max:
