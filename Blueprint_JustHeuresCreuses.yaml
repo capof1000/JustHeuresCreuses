@@ -1,5 +1,5 @@
 blueprint:
-  name: JustHeuresCreuses – version utility_meter
+  name: JustHeuresCreuses – v0.0
   description: >
     Décide d'allumer ou d'éteindre un équipement pendant les heures creuses
     en fonction des prévisions solaires et de l'énergie réellement consommée
