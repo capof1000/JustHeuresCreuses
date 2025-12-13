@@ -95,16 +95,23 @@ variables:
   # Energie minimale requise sur 24h
   energy_reference: "{{ avg_daily_energy * (min_pct / 100) }}"
 
-  # Energie consommée sur les dernières 24h (approximation)
-  energy_24h: "{{ avg_daily_energy }}"
+  # Energie sur 24h calculée directement à partir de l'historique
+  energy_24h: >-
+    {% set history_24h = namespace(val=energy_now) %}
+    {% for s in states(!input energy_sensor) | reverse %}
+      {% if (as_timestamp(now()) - as_timestamp(s.last_changed)) >= 86400 %}
+        {% set history_24h.val = s.state | float(0) %}
+        {% break %}
+      {% endif %}
+    {% endfor %}
+    {{ energy_now - history_24h.val }}
 
 action:
   - choose:
       - conditions:
           - condition: template
             value_template: >
-              {{ solar_forecast > (states('input_number.dummy') | float(0))
-                 or energy_24h >= energy_reference }}
+              {{ solar_forecast > !input solar_threshold or energy_24h >= energy_reference }}
         sequence:
           - service: switch.turn_off
             target:
@@ -125,9 +132,9 @@ action:
           message: >
             [JustHeuresCreuses][DEBUG]
             Switch={{ states(!input target_switch) }} | HC={{ states(!input heures_creuses_sensor) }}
-            SolarForecast={{ solar_forecast }} kWh | SolarThreshold={{ states('input_number.dummy') }} kWh
+            SolarForecast={{ solar_forecast }} kWh | SolarThreshold={{ !input solar_threshold }} kWh
             EnergySensor={{ energy_now }} kWh
             Energy24h={{ energy_24h }} kWh | EnergyRef={{ energy_reference }} kWh
-            Decision={{ 'OFF' if (solar_forecast > (states('input_number.dummy') | float(0)) or energy_24h >= energy_reference) else 'ON' }}
+            Decision={{ 'OFF' if (solar_forecast > !input solar_threshold or energy_24h >= energy_reference) else 'ON' }}
 
 mode: single
