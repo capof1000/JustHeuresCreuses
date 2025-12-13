@@ -1,116 +1,78 @@
 blueprint:
-  name: JustHeuresCreuses – Temps ON garanti
+  name: JustHeuresCreuses – version utility_meter
   description: >
-    Version A : garantit un temps de fonctionnement minimum sur 24h pendant les heures creuses,
-    puis optimise selon les prévisions solaires. Ne dépend pas de l'historique d'énergie.
+    Décide d'allumer ou d'éteindre un équipement pendant les heures creuses
+    en fonction des prévisions solaires et de l'énergie réellement consommée
+    sur 24h (via utility_meter). Inclut un mode debug.
   domain: automation
 
   input:
     target_switch:
       name: Équipement à contrôler
+      description: L'équipement que le blueprint va allumer ou éteindre (switch ou input_boolean).
       selector:
         entity:
           domain:
             - switch
             - input_boolean
 
+    heures_creuses_sensor:
+      name: Capteur Heures Creuses
+      description: Capteur binaire qui indique quand c'est la période des heures creuses (ON = heures creuses actives).
+      default: binary_sensor.heures_creuses
+      selector:
+        entity:
+          domain: binary_sensor
+
     energy_24h_sensor:
       name: Énergie consommée sur 24h
       description: >
         Capteur représentant l’énergie consommée par l’équipement sur 24h.
-        
-        👉 Recommandé : créer ce capteur via l’intégration native « Utility Meter »
-        directement depuis l’interface Home Assistant.
-        
+        Recommandé : créer ce capteur via l’intégration native « Utility Meter » depuis l’interface Home Assistant.
         Étapes :
         - Paramètres > Appareils & services > Assistants > Utility Meter
         - Source : capteur d’énergie cumulatif (kWh)
         - Cycle : Daily
         - Laisser « Delta values » désactivé
-        
         Ce capteur correspond à : énergie_actuelle − énergie_au_début_du_jour.
-        Il s’agit d’une vue calculée officielle (pas d’une nouvelle mesure),
-        nécessaire car les blueprints n’ont pas accès à l’historique (valeur à H-24).
+        Il s’agit d’une vue calculée officielle (pas d’une nouvelle mesure), nécessaire car les blueprints n’ont pas accès à l’historique.
       selector:
         entity:
           domain: sensor
 
+    solar_forecast_sensor:
+      name: Prévision de production solaire sur 24h (kWh)
+      description: Capteur donnant la prévision d’énergie solaire disponible pour la journée. L’automatisation s’en sert pour décider d’éteindre l’équipement si la production solaire est suffisante.
+      default: sensor.energy_production_today_2
+      selector:
+        entity:
+          domain: sensor
+
+    solar_threshold:
+      name: Seuil minimum de production solaire (kWh)
+      description: Si la prévision solaire dépasse ce seuil, l’équipement peut être éteint même si le minimum journalier n’est pas atteint.
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 50
+          step: 0.1
+          unit_of_measurement: kWh
+
+    min_energy_reference:
+      name: Énergie minimale à assurer sur 24h (kWh)
+      description: Seuil minimal de consommation sur 24h que l’équipement doit atteindre. Garantit un fonctionnement minimum de l’équipement.
+      default: 3
+      selector:
+        number:
+          min: 0
+          max: 20
+          step: 0.1
+          unit_of_measurement: kWh
+
     debug_mode:
       name: Mode debug
-      description: Active la journalisation détaillée
+      description: Active la journalisation détaillée pour suivre toutes les variables et décisions du blueprint.
       default: false
       selector:
         boolean: {}
-
-trigger:
-  - platform: time_pattern
-    minutes: "/1"
-
-condition:
-  - condition: state
-    entity_id: !input heures_creuses_sensor
-    state: "on"
-
-variables:
-  sw: !input target_switch
-  hc: !input heures_creuses_sensor
-  counter_minutes: !input minutes_counter
-  min_minutes: !input min_minutes
-  solar_sensor: !input solar_forecast_sensor
-  solar_threshold: !input solar_threshold
-  debug: !input debug_mode
-
-  is_on: "{{ is_state(sw, 'on') }}"
-  minutes_today: "{{ states(counter_minutes) | int(0) }}"
-  solar_forecast: "{{ states(solar_sensor) | float(0) }}"
-
-action:
-  # 1. Incrémenter le compteur si l'appareil est ON
-  - if:
-      - condition: template
-        value_template: "{{ is_on }}"
-    then:
-      - service: counter.increment
-        target:
-          entity_id: "{{ counter_minutes }}"
-
-  # 2. Décision ON / OFF
-  - choose:
-      # Priorité : temps minimum non atteint
-      - conditions:
-          - condition: template
-            value_template: "{{ minutes_today < min_minutes }}"
-        sequence:
-          - service: switch.turn_on
-            target:
-              entity_id: "{{ sw }}"
-
-      # Sinon : logique solaire
-      - conditions:
-          - condition: template
-            value_template: "{{ solar_forecast > solar_threshold }}"
-        sequence:
-          - service: switch.turn_off
-            target:
-              entity_id: "{{ sw }}"
-    default:
-      - service: switch.turn_on
-        target:
-          entity_id: "{{ sw }}"
-
-  # 3. Debug
-  - if:
-      - condition: template
-        value_template: "{{ debug }}"
-    then:
-      - service: system_log.write
-        data:
-          level: info
-          message: >
-            [JustHeuresCreuses][A][DEBUG]
-            HC={{ states(hc) }} | Switch={{ states(sw) }}
-            Minutes={{ minutes_today }} / {{ min_minutes }}
-            Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }})
-            Decision={{ 'FORCE ON (quota)' if minutes_today < min_minutes else ('OFF (solaire OK)' if solar_forecast > solar_threshold else 'ON') }}
-
-mode: single
