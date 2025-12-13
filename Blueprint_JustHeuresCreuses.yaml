@@ -1,162 +1,133 @@
 blueprint:
-  name: Gestion intelligente de charge VE + Modes externes
+  name: JustHeuresCreuses
   description: >
-    Contrôle la charge d’un véhicule selon plusieurs modes (Auto, Solaire, Heures Creuses,
-    Forcé) avec possibilité de changer le mode depuis une entité externe.
+    Décide d'allumer ou d'éteindre un équipement pendant les heures creuses
+    selon les prévisions de production solaire et un minimum de fonctionnement journalier.
+    Inclut un mode debug avec journalisation détaillée.
   domain: automation
 
   input:
-    mode_selector:
-      name: "Sélecteur de mode"
-      description: "Input_select permettant de choisir le mode de charge"
+    target_switch:
+      name: Équipement à contrôler
       selector:
         entity:
-          domain: input_select
+          domain:
+            - switch
+            - input_boolean
 
-    charger_switch:
-      name: "Chargeur (switch)"
-      selector:
-        entity:
-          domain: switch
-
-    net_power:
-      name: "Puissance nette (W)"
-      description: "Production - consommation (valeur positive = surplus)"
+    energy_sensor:
+      name: Capteur d'énergie de l'équipement (kWh cumulatif)
       selector:
         entity:
           domain: sensor
-          device_class: power
 
-    tesla_soc:
-      name: "% de batterie Tesla (%)"
+    heures_creuses_sensor:
+      name: Capteur Heures Creuses
+      description: Doit être ON pendant les heures creuses
+      default: binary_sensor.heures_creuses
+      selector:
+        entity:
+          domain: binary_sensor
+
+    solar_forecast_sensor:
+      name: Prévision de production solaire sur 24h (kWh)
+      default: sensor.energy_production_today_2
       selector:
         entity:
           domain: sensor
-          device_class: battery
 
-    min_soc:
-      name: "SOC minimum (%)"
-      default: 20
+    solar_threshold:
+      name: Seuil minimum de production solaire (kWh)
+      default: 1
       selector:
         number:
           min: 0
-          max: 100
+          max: 50
+          step: 0.1
+          unit_of_measurement: kWh
+
+    reference_period:
+      name: Période de référence (heures)
+      description: Utilisée pour calculer la consommation moyenne
+      default: 96
+      selector:
+        number:
+          min: 1
+          max: 168
           step: 1
+          unit_of_measurement: h
 
-    max_soc:
-      name: "SOC maximum (%)"
-      default: 80
-      selector:
-        number:
-          min: 0
-          max: 100
-          step: 1
-
-    surplus_watts:
-      name: "Surplus nécessaire pour charger (W)"
-      default: 1500
-      selector:
-        number:
-          min: 0
-          max: 5000
-          step: 100
-
-    off_delay:
-      name: "Délai avant arrêt (s)"
+    min_percentage:
+      name: Pourcentage minimum de fonctionnement sur 24h
       default: 30
       selector:
         number:
           min: 0
-          max: 600
-          step: 5
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
 
-mode: restart
+    debug_mode:
+      name: Mode debug
+      description: Active la journalisation détaillée
+      default: false
+      selector:
+        boolean: {}
 
 trigger:
-  - platform: state
-    entity_id: !input mode_selector
-  - platform: state
-    entity_id: !input net_power
-  - platform: state
-    entity_id: !input tesla_soc
+  - platform: time_pattern
+    minutes: "/1"
+
+condition:
+  - condition: state
+    entity_id: !input heures_creuses_sensor
+    state: "on"
 
 variables:
-  mode: "{{ states( input.mode_selector ) }}"
-  soc: "{{ states( input.tesla_soc )|float }}"
-  net: "{{ states( input.net_power )|float }}"
-  min_soc: !input min_soc
-  max_soc: !input max_soc
-  surplus: !input surplus_watts
+  energy_now: "{{ states(!input energy_sensor) | float(0) }}"
+  solar_forecast: "{{ states(!input solar_forecast_sensor) | float(0) }}"
+  ref_hours: !input reference_period
+  min_pct: !input min_percentage
 
-condition: []
+  # Consommation moyenne journalière estimée
+  avg_daily_energy: "{{ (energy_now / ref_hours * 24) if ref_hours > 0 else 0 }}"
+
+  # Energie minimale requise sur 24h
+  energy_reference: "{{ avg_daily_energy * (min_pct / 100) }}"
+
+  # Energie consommée sur les dernières 24h (approximation)
+  energy_24h: "{{ avg_daily_energy }}"
 
 action:
-
   - choose:
-
-      ## --- MODE : FORCÉ ---------------------------------------
-      - conditions: "{{ mode == 'Force' }}"
-        sequence:
-          - service: switch.turn_on
-            target:
-              entity_id: !input charger_switch
-
-      ## --- MODE : ARRÊT ---------------------------------------
-      - conditions: "{{ mode == 'Off' }}"
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ solar_forecast > (states('input_number.dummy') | float(0))
+                 or energy_24h >= energy_reference }}
         sequence:
           - service: switch.turn_off
             target:
-              entity_id: !input charger_switch
+              entity_id: !input target_switch
+    default:
+      - service: switch.turn_on
+        target:
+          entity_id: !input target_switch
 
-      ## --- MODE : HEURES CREUSES ------------------------------
-      - conditions: "{{ mode == 'Heures Creuses' }}"
-        sequence:
-          - choose:
-              - conditions: "{{ soc < max_soc }}"
-                sequence:
-                  - service: switch.turn_on
-                    target:
-                      entity_id: !input charger_switch
-            default:
-              - service: switch.turn_off
-                target:
-                  entity_id: !input charger_switch
+  - if:
+      - condition: state
+        entity_id: !input debug_mode
+        state: "on"
+    then:
+      - service: system_log.write
+        data:
+          level: info
+          message: >
+            [JustHeuresCreuses][DEBUG]
+            Switch={{ states(!input target_switch) }} | HC={{ states(!input heures_creuses_sensor) }}
+            SolarForecast={{ solar_forecast }} kWh | SolarThreshold={{ states('input_number.dummy') }} kWh
+            EnergySensor={{ energy_now }} kWh
+            Energy24h={{ energy_24h }} kWh | EnergyRef={{ energy_reference }} kWh
+            Decision={{ 'OFF' if (solar_forecast > (states('input_number.dummy') | float(0)) or energy_24h >= energy_reference) else 'ON' }}
 
-      ## --- MODE : SOLAIRE -------------------------------------
-      - conditions: "{{ mode == 'Solaire' }}"
-        sequence:
-          - choose:
-              - conditions: >
-                  {{ net > surplus and soc < max_soc }}
-                sequence:
-                  - service: switch.turn_on
-                    target:
-                      entity_id: !input charger_switch
-
-            default:
-              - delay: !input off_delay
-              - service: switch.turn_off
-                target:
-                  entity_id: !input charger_switch
-
-      ## --- MODE : AUTO (HC + SOLAIRE + limites SOC) -----------
-      - conditions: "{{ mode == 'Auto' }}"
-        sequence:
-          - choose:
-              - conditions: "{{ soc < min_soc }}"
-                sequence:
-                  - service: switch.turn_on
-                    target:
-                      entity_id: !input charger_switch
-
-              - conditions: "{{ net > surplus and soc < max_soc }}"
-                sequence:
-                  - service: switch.turn_on
-                    target:
-                      entity_id: !input charger_switch
-
-            default:
-              - delay: !input off_delay
-              - service: switch.turn_off
-                target:
-                  entity_id: !input charger_switch
+mode: single
