@@ -7,14 +7,16 @@ L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pa
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://github.com/capof1000/JustHeuresCreuses/blob/main/Blueprint_JustHeuresCreuses.yaml)
 
 
-## Parametrage d'entree
+## Parametrage d'entree Standard
 - input Boolean/Switch : correspondant a l'equipement a controller
 - Capteur d'energie de l'equipement a controller: il s'agit de l'index d'energie qui s'incremente, il peut etre calculer via l'integration Powercal ou directement fourni par le hardware powermeter.
 - Capteur de moment de la journée : un boolean qui va definir la periode de fonctionnent correspondant aux heures creuses (par default binary_sensor.heures_creuses)
 - Capteur de prevision de production des prochaines 24h, exprime en kWh (par default sensor.energy_production_today_2)
 - Seuil : input numerique , exprime en kWh correspondant au seuil minimun de prevision neceaaire
+## Parametrage d'entree Avances
 - Periode de reference : imput numerique, exprimant un nombre d'heures. Cette periode sera utilise pour calculer une valeur moyenne de reference , (par default 96)
 - Pourcentage mini : input numerique exprimant un pourcentage de fonctionnement minimun a assurer sur 24h. (par default 30)
+- mode debug : boolean
 
 ## Fonctionnement
 L'automatisataon va etre declencher chaque minute
@@ -23,6 +25,8 @@ L'automatisataon va calculer une variabe interne, appele "Energie de l'equipemen
 L'automatisatiom ne prend des decisions uniquement lorsque "Capteur de moment de la journée" = Active, deplus
   SI       ("seuil Prevision" < "Capteur de prevision de production") OU ("Energie de reference" > "Energie de l'equipement sur 24"), L'automatisaion va eteindre l'equipement 
   SINON , L'automatisaion va allumer l'equipement
+
+L'automatisaion , dans le cas ou le mode debug est active va logguer toutes les variables et entite avec leur valeur, afin de facilier le troubleshooting.
     
 
 
