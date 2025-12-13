@@ -16,7 +16,7 @@ L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pa
 ## Parametrage d'entree Avances
 - Periode de reference : imput numerique, exprimant un nombre d'heures. Cette periode sera utilise pour calculer une valeur moyenne de reference , (par default 96)
 - Pourcentage mini : input numerique exprimant un pourcentage de fonctionnement minimun a assurer sur 24h. (par default 30)
-- mode debug : boolean
+- mode debug : boolean , (par default desactive)
 
 ## Fonctionnement
 L'automatisataon va etre declencher chaque minute
