@@ -1,5 +1,5 @@
 blueprint:
-  name: JustHeuresCreuses
+  name: JustHeuresCreuses – version utility_meter
   description: >
     Décide d'allumer ou d'éteindre un équipement pendant les heures creuses
     en fonction des prévisions solaires et de l'énergie réellement consommée
@@ -88,6 +88,7 @@ condition:
 
 variables:
   sw: !input target_switch
+  hc: !input heures_creuses_sensor
   energy_24h: !input energy_24h_sensor
   solar_sensor: !input solar_forecast_sensor
   solar_threshold: !input solar_threshold
@@ -96,6 +97,8 @@ variables:
 
   energy_today: "{{ states(energy_24h) | float(0) }}"
   solar_forecast: "{{ states(solar_sensor) | float(0) }}"
+  hc_state: "{{ states(hc) }}"
+  sw_state: "{{ states(sw) }}"
 
 action:
   - choose:
@@ -121,8 +124,8 @@ action:
           level: info
           message: >
             [JustHeuresCreuses][DEBUG]
-            HC={{ states(!input heures_creuses_sensor) }}
-            | Switch={{ states(!input target_switch) }}
+            HC={{ hc_state }}
+            | Switch={{ sw_state }}
             Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }})
             | Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }})
             | Decision={{ 'OFF' if (solar_forecast > solar_threshold or energy_today >= min_energy_ref) else 'ON' }}
