@@ -1,9 +1,8 @@
 blueprint:
-  name: JustHeuresCreuses
+  name: JustHeuresCreuses – Temps ON garanti
   description: >
-    Décide d'allumer ou d'éteindre un équipement pendant les heures creuses
-    selon les prévisions de production solaire et un minimum de fonctionnement journalier.
-    Inclut un mode debug avec journalisation détaillée.
+    Version A : garantit un temps de fonctionnement minimum sur 24h pendant les heures creuses,
+    puis optimise selon les prévisions solaires. Ne dépend pas de l'historique d'énergie.
   domain: automation
 
   input:
@@ -15,57 +14,26 @@ blueprint:
             - switch
             - input_boolean
 
-    energy_sensor:
-      name: Capteur d'énergie de l'équipement (kWh cumulatif)
+    energy_24h_sensor:
+      name: Énergie consommée sur 24h
+      description: >
+        Capteur représentant l’énergie consommée par l’équipement sur 24h.
+        
+        👉 Recommandé : créer ce capteur via l’intégration native « Utility Meter »
+        directement depuis l’interface Home Assistant.
+        
+        Étapes :
+        - Paramètres > Appareils & services > Assistants > Utility Meter
+        - Source : capteur d’énergie cumulatif (kWh)
+        - Cycle : Daily
+        - Laisser « Delta values » désactivé
+        
+        Ce capteur correspond à : énergie_actuelle − énergie_au_début_du_jour.
+        Il s’agit d’une vue calculée officielle (pas d’une nouvelle mesure),
+        nécessaire car les blueprints n’ont pas accès à l’historique (valeur à H-24).
       selector:
         entity:
           domain: sensor
-
-    heures_creuses_sensor:
-      name: Capteur Heures Creuses
-      description: Doit être ON pendant les heures creuses
-      default: binary_sensor.heures_creuses
-      selector:
-        entity:
-          domain: binary_sensor
-
-    solar_forecast_sensor:
-      name: Prévision de production solaire sur 24h (kWh)
-      default: sensor.energy_production_today_2
-      selector:
-        entity:
-          domain: sensor
-
-    solar_threshold:
-      name: Seuil minimum de production solaire (kWh)
-      default: 1
-      selector:
-        number:
-          min: 0
-          max: 50
-          step: 0.1
-          unit_of_measurement: kWh
-
-    reference_period:
-      name: Période de référence (heures)
-      description: Utilisée pour calculer la consommation moyenne
-      default: 96
-      selector:
-        number:
-          min: 1
-          max: 168
-          step: 1
-          unit_of_measurement: h
-
-    min_percentage:
-      name: Pourcentage minimum de fonctionnement sur 24h
-      default: 30
-      selector:
-        number:
-          min: 0
-          max: 100
-          step: 1
-          unit_of_measurement: "%"
 
     debug_mode:
       name: Mode debug
@@ -84,45 +52,53 @@ condition:
     state: "on"
 
 variables:
-  my_energy_sensor: !input energy_sensor
-  my_target_switch: !input target_switch
-  my_heures_creuses_sensor: !input heures_creuses_sensor
-  my_solar_forecast_sensor: !input solar_forecast_sensor
-  my_solar_threshold: !input solar_threshold
-  ref_hours: !input reference_period
-  min_pct: !input min_percentage
+  sw: !input target_switch
+  hc: !input heures_creuses_sensor
+  counter_minutes: !input minutes_counter
+  min_minutes: !input min_minutes
+  solar_sensor: !input solar_forecast_sensor
+  solar_threshold: !input solar_threshold
   debug: !input debug_mode
 
-  energy_now: "{{ states(my_energy_sensor) | float(0) }}"
-  solar_forecast: "{{ states(my_solar_forecast_sensor) | float(0) }}"
-  avg_daily_energy: "{{ (energy_now / ref_hours * 24) if ref_hours > 0 else 0 }}"
-  energy_reference: "{{ avg_daily_energy * (min_pct / 100) }}"
-
-  energy_24h: >-
-    {% set history_24h = namespace(val=energy_now) %}
-    {% for s in states(my_energy_sensor) | reverse %}
-      {% if (as_timestamp(now()) - as_timestamp(s.last_changed)) >= 86400 %}
-        {% set history_24h.val = s.state | float(0) %}
-        {% break %}
-      {% endif %}
-    {% endfor %}
-    {{ energy_now - history_24h.val }}
+  is_on: "{{ is_state(sw, 'on') }}"
+  minutes_today: "{{ states(counter_minutes) | int(0) }}"
+  solar_forecast: "{{ states(solar_sensor) | float(0) }}"
 
 action:
+  # 1. Incrémenter le compteur si l'appareil est ON
+  - if:
+      - condition: template
+        value_template: "{{ is_on }}"
+    then:
+      - service: counter.increment
+        target:
+          entity_id: "{{ counter_minutes }}"
+
+  # 2. Décision ON / OFF
   - choose:
+      # Priorité : temps minimum non atteint
       - conditions:
           - condition: template
-            value_template: >
-              {{ solar_forecast > my_solar_threshold or energy_24h >= energy_reference }}
+            value_template: "{{ minutes_today < min_minutes }}"
+        sequence:
+          - service: switch.turn_on
+            target:
+              entity_id: "{{ sw }}"
+
+      # Sinon : logique solaire
+      - conditions:
+          - condition: template
+            value_template: "{{ solar_forecast > solar_threshold }}"
         sequence:
           - service: switch.turn_off
             target:
-              entity_id: "{{ my_target_switch }}"
+              entity_id: "{{ sw }}"
     default:
       - service: switch.turn_on
         target:
-          entity_id: "{{ my_target_switch }}"
+          entity_id: "{{ sw }}"
 
+  # 3. Debug
   - if:
       - condition: template
         value_template: "{{ debug }}"
@@ -131,11 +107,10 @@ action:
         data:
           level: info
           message: >
-            [JustHeuresCreuses][DEBUG]
-            Switch={{ states(my_target_switch) }} | HC={{ states(my_heures_creuses_sensor) }}
-            SolarForecast={{ solar_forecast }} kWh | SolarThreshold={{ my_solar_threshold }} kWh
-            EnergySensor={{ energy_now }} kWh
-            Energy24h={{ energy_24h }} kWh | EnergyRef={{ energy_reference }} kWh
-            Decision={{ 'OFF' if (solar_forecast > my_solar_threshold or energy_24h >= energy_reference) else 'ON' }}
+            [JustHeuresCreuses][A][DEBUG]
+            HC={{ states(hc) }} | Switch={{ states(sw) }}
+            Minutes={{ minutes_today }} / {{ min_minutes }}
+            Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }})
+            Decision={{ 'FORCE ON (quota)' if minutes_today < min_minutes else ('OFF (solaire OK)' if solar_forecast > solar_threshold else 'ON') }}
 
 mode: single
