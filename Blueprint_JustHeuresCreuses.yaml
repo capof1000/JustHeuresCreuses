@@ -2,7 +2,8 @@ blueprint:
   name: JustHeuresCreuses
   description: >
     Décide d'allumer ou d'éteindre un équipement pendant les heures creuses
-    en fonction des prévisions solaires et de l'usage de l'appareil sur les dernieres 24.
+    en fonction des prévisions solaires et de l'énergie réellement consommée
+    sur 24h (via utility_meter). Inclut un mode debug.
   domain: automation
 
   input:
@@ -75,3 +76,55 @@ blueprint:
       default: false
       selector:
         boolean: {}
+
+trigger:
+  - platform: time_pattern
+    minutes: "/1"
+
+condition:
+  - condition: state
+    entity_id: !input heures_creuses_sensor
+    state: "on"
+
+variables:
+  sw: !input target_switch
+  energy_24h: !input energy_24h_sensor
+  solar_sensor: !input solar_forecast_sensor
+  solar_threshold: !input solar_threshold
+  min_energy_ref: !input min_energy_reference
+  debug: !input debug_mode
+
+  energy_today: "{{ states(energy_24h) | float(0) }}"
+  solar_forecast: "{{ states(solar_sensor) | float(0) }}"
+
+action:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ solar_forecast > solar_threshold or energy_today >= min_energy_ref }}
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: !input target_switch
+    default:
+      - service: switch.turn_on
+        target:
+          entity_id: !input target_switch
+
+  - if:
+      - condition: template
+        value_template: "{{ debug }}"
+    then:
+      - service: system_log.write
+        data:
+          level: info
+          message: >
+            [JustHeuresCreuses][DEBUG]
+            HC={{ states(!input heures_creuses_sensor) }}
+            | Switch={{ states(!input target_switch) }}
+            Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }})
+            | Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }})
+            | Decision={{ 'OFF' if (solar_forecast > solar_threshold or energy_today >= min_energy_ref) else 'ON' }}
+
+mode: single
