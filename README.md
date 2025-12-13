@@ -21,7 +21,7 @@ L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pa
 ## Fonctionnement
 L'automatisataon va etre declencher chaque minute
 L'automatisataon va calculer une variabe interne, appele "Energie de référence", servant a stocker (la consommation quotidienne moyenne de l'equipement pendant la periode de reference) * Pourcentage mini
-L'automatisataon va calculer une variabe interne, appele "Energie de l'equipement sur 24", servant a stocker et calculer , grace au capteur d'energie fourni: la consommation de l'appareil au cours de 24h dernieres heure, exprimee en kWh.
+L'automatisataon va calculer une variabe interne, appele "Energie de l'equipement sur 24", servant a stocker et calculer  , grace au capteur d'energie fourni (via states.sensor.energy_sensor.history) : la consommation de l'appareil au cours de 24h dernieres heure, exprimee en kWh.
 L'automatisatiom ne prend des decisions uniquement lorsque "Capteur de moment de la journée" = Active, deplus
   SI       ("seuil Prevision" < "Capteur de prevision de production") OU ("Energie de référence" < "Energie de l'equipement sur 24"), L'automatisaion va eteindre l'equipement 
   SINON , L'automatisaion va allumer l'equipement
