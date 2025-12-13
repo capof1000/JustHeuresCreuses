@@ -27,6 +27,10 @@ L'automatisatiom ne prend des decisions uniquement lorsque "Capteur de moment de
   SINON , L'automatisaion va allumer l'equipement
 
 L'automatisaion , dans le cas ou le mode debug est active va logguer toutes les variables et entite avec leur valeur, afin de facilier le troubleshooting.
+
+# Correction
+regler :
+Message malformed: invalid template (TemplateSyntaxError: unexpected char '!' at 10) for dictionary value @ data['variables']['energy_now']
     
 
 
