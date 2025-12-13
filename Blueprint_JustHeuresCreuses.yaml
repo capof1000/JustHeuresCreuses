@@ -84,7 +84,6 @@ condition:
     state: "on"
 
 variables:
-  # Stockage des entrées dans des variables intermédiaires
   my_energy_sensor: !input energy_sensor
   my_target_switch: !input target_switch
   my_heures_creuses_sensor: !input heures_creuses_sensor
@@ -94,13 +93,11 @@ variables:
   min_pct: !input min_percentage
   debug: !input debug_mode
 
-  # Valeurs calculées
   energy_now: "{{ states(my_energy_sensor) | float(0) }}"
   solar_forecast: "{{ states(my_solar_forecast_sensor) | float(0) }}"
   avg_daily_energy: "{{ (energy_now / ref_hours * 24) if ref_hours > 0 else 0 }}"
   energy_reference: "{{ avg_daily_energy * (min_pct / 100) }}"
 
-  # Calcul réel de la consommation sur 24h depuis l'index cumulatif
   energy_24h: >-
     {% set history_24h = namespace(val=energy_now) %}
     {% for s in states(my_energy_sensor) | reverse %}
@@ -120,11 +117,11 @@ action:
         sequence:
           - service: switch.turn_off
             target:
-              entity_id: my_target_switch
+              entity_id: "{{ my_target_switch }}"
     default:
       - service: switch.turn_on
         target:
-          entity_id: my_target_switch
+          entity_id: "{{ my_target_switch }}"
 
   - if:
       - condition: template
