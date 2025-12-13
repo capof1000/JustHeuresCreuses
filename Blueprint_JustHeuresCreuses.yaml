@@ -1,9 +1,7 @@
 blueprint:
-  name: JustHeuresCreuses – v0.0
+  name: JustHeuresCreuses
   description: >
-    Décide d'allumer ou d'éteindre un équipement pendant les heures creuses
-    en fonction des prévisions solaires et de l'énergie réellement consommée
-    sur 24h (via utility_meter). Inclut un mode debug.
+    L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
   domain: automation
 
   input:
@@ -18,7 +16,7 @@ blueprint:
 
     heures_creuses_sensor:
       name: Capteur Heures Creuses
-      description: Capteur binaire qui indique quand c'est la période des heures creuses (ON = heures creuses actives).
+      description: Capteur binaire indiquant quand c'est la période des heures creuses (ON = heures creuses actives).
       default: binary_sensor.heures_creuses
       selector:
         entity:
@@ -28,21 +26,14 @@ blueprint:
       name: Énergie consommée sur 24h
       description: >
         Capteur représentant l’énergie consommée par l’équipement sur 24h.
-        Recommandé : créer ce capteur via l’intégration native « Utility Meter » depuis l’interface Home Assistant.
-        Étapes :
-        - Paramètres > Appareils & services > Assistants > Utility Meter
-        - Source : capteur d’énergie cumulatif (kWh)
-        - Cycle : Daily
-        - Laisser « Delta values » désactivé
-        Ce capteur correspond à : énergie_actuelle − énergie_au_début_du_jour.
-        Il s’agit d’une vue calculée officielle (pas d’une nouvelle mesure), nécessaire car les blueprints n’ont pas accès à l’historique.
+        Recommandé : créer via l’intégration « Utility Meter » depuis l’interface Home Assistant.
       selector:
         entity:
           domain: sensor
 
     solar_forecast_sensor:
       name: Prévision de production solaire sur 24h (kWh)
-      description: Capteur donnant la prévision d’énergie solaire disponible pour la journée. L’automatisation s’en sert pour décider d’éteindre l’équipement si la production solaire est suffisante.
+      description: Capteur donnant la prévision d’énergie solaire disponible pour la journée.
       default: sensor.energy_production_today_2
       selector:
         entity:
@@ -61,7 +52,7 @@ blueprint:
 
     min_energy_reference:
       name: Énergie minimale à assurer sur 24h (kWh)
-      description: Seuil minimal de consommation sur 24h que l’équipement doit atteindre. Garantit un fonctionnement minimum de l’équipement.
+      description: Seuil minimal de consommation sur 24h que l’équipement doit atteindre.
       default: 3
       selector:
         number:
@@ -99,6 +90,7 @@ variables:
   solar_forecast: "{{ states(solar_sensor) | float(0) }}"
   hc_state: "{{ states(hc) }}"
   sw_state: "{{ states(sw) }}"
+  sw_domain: "{{ sw.split('.')[0] }}"
 
 action:
   - choose:
@@ -107,13 +99,23 @@ action:
             value_template: >
               {{ solar_forecast > solar_threshold or energy_today >= min_energy_ref }}
         sequence:
-          - service: switch.turn_off
+          - service: >
+              {% if sw_domain == 'switch' %}
+              switch.turn_off
+              {% elif sw_domain == 'input_boolean' %}
+              input_boolean.turn_off
+              {% endif %}
             target:
-              entity_id: !input target_switch
+              entity_id: "{{ sw }}"
     default:
-      - service: switch.turn_on
+      - service: >
+          {% if sw_domain == 'switch' %}
+          switch.turn_on
+          {% elif sw_domain == 'input_boolean' %}
+          input_boolean.turn_on
+          {% endif %}
         target:
-          entity_id: !input target_switch
+          entity_id: "{{ sw }}"
 
   - if:
       - condition: template
