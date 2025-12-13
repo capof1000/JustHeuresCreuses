@@ -84,21 +84,26 @@ condition:
     state: "on"
 
 variables:
-  energy_now: "{{ states(!input energy_sensor) | float(0) }}"
-  solar_forecast: "{{ states(!input solar_forecast_sensor) | float(0) }}"
+  # Stockage des entrées dans des variables intermédiaires
+  my_energy_sensor: !input energy_sensor
+  my_target_switch: !input target_switch
+  my_heures_creuses_sensor: !input heures_creuses_sensor
+  my_solar_forecast_sensor: !input solar_forecast_sensor
+  my_solar_threshold: !input solar_threshold
   ref_hours: !input reference_period
   min_pct: !input min_percentage
+  debug: !input debug_mode
 
-  # Consommation moyenne journalière estimée
+  # Valeurs calculées
+  energy_now: "{{ states(my_energy_sensor) | float(0) }}"
+  solar_forecast: "{{ states(my_solar_forecast_sensor) | float(0) }}"
   avg_daily_energy: "{{ (energy_now / ref_hours * 24) if ref_hours > 0 else 0 }}"
-
-  # Energie minimale requise sur 24h
   energy_reference: "{{ avg_daily_energy * (min_pct / 100) }}"
 
-  # Energie sur 24h calculée directement à partir de l'historique
+  # Calcul réel de la consommation sur 24h depuis l'index cumulatif
   energy_24h: >-
     {% set history_24h = namespace(val=energy_now) %}
-    {% for s in states(!input energy_sensor) | reverse %}
+    {% for s in states(my_energy_sensor) | reverse %}
       {% if (as_timestamp(now()) - as_timestamp(s.last_changed)) >= 86400 %}
         {% set history_24h.val = s.state | float(0) %}
         {% break %}
@@ -111,30 +116,29 @@ action:
       - conditions:
           - condition: template
             value_template: >
-              {{ solar_forecast > !input solar_threshold or energy_24h >= energy_reference }}
+              {{ solar_forecast > my_solar_threshold or energy_24h >= energy_reference }}
         sequence:
           - service: switch.turn_off
             target:
-              entity_id: !input target_switch
+              entity_id: my_target_switch
     default:
       - service: switch.turn_on
         target:
-          entity_id: !input target_switch
+          entity_id: my_target_switch
 
   - if:
-      - condition: state
-        entity_id: !input debug_mode
-        state: "on"
+      - condition: template
+        value_template: "{{ debug }}"
     then:
       - service: system_log.write
         data:
           level: info
           message: >
             [JustHeuresCreuses][DEBUG]
-            Switch={{ states(!input target_switch) }} | HC={{ states(!input heures_creuses_sensor) }}
-            SolarForecast={{ solar_forecast }} kWh | SolarThreshold={{ !input solar_threshold }} kWh
+            Switch={{ states(my_target_switch) }} | HC={{ states(my_heures_creuses_sensor) }}
+            SolarForecast={{ solar_forecast }} kWh | SolarThreshold={{ my_solar_threshold }} kWh
             EnergySensor={{ energy_now }} kWh
             Energy24h={{ energy_24h }} kWh | EnergyRef={{ energy_reference }} kWh
-            Decision={{ 'OFF' if (solar_forecast > !input solar_threshold or energy_24h >= energy_reference) else 'ON' }}
+            Decision={{ 'OFF' if (solar_forecast > my_solar_threshold or energy_24h >= energy_reference) else 'ON' }}
 
 mode: single
