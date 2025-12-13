@@ -28,9 +28,13 @@ L'automatisatiom ne prend des decisions uniquement lorsque "Capteur de moment de
 
 L'automatisaion , dans le cas ou le mode debug est active va logguer toutes les variables et entite avec leur valeur, afin de facilier le troubleshooting.
 
-# Correction
-regler :
-Message malformed: invalid template (TemplateSyntaxError: unexpected char '!' at 10) for dictionary value @ data['variables']['energy_now']
+# Probleme / Correction
+
+*Message malformed: invalid template (TemplateSyntaxError: unexpected char '!' at 10) for dictionary value @ data['variables']['energy_now']
+-> il faut d’abord stocker toutes les entrées dans des variables
+
+*Message malformed: not a valid value for dictionary value @ data['actions'][0]['choose'][0]['sequence'][0]['target']['entity_id']
+-> Il faut utiliser la syntaxe data_template (ou service_call via template), ou plus simple : mettre la variable dans entity_id: "{{ my_target_switch }}".
     
 
 
