@@ -2,8 +2,7 @@ blueprint:
   name: JustHeuresCreuses
   description: >
     Décide d'allumer ou d'éteindre un équipement pendant les heures creuses
-    en fonction des prévisions solaires et de l'énergie réellement consommée
-    sur 24h (via utility_meter). Inclut un mode debug.
+    en fonction des prévisions solaires et de l'usage de l'appareil sur les dernieres 24.
   domain: automation
 
   input:
