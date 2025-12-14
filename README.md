@@ -5,9 +5,6 @@
 - 🔋 d’un **besoin minimal vital** sur les **24 dernières heures glissantes**
 - ☀️ des **prévisions de production solaire**
 
-🎯 Objectif principal :  
-**éviter les douches froides** 🚿 tout en **limitant la consommation inutile la nuit**.
-
 ---
 
 ## Installation
