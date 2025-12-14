@@ -22,6 +22,19 @@ blueprint:
         entity:
           domain: binary_sensor
 
+
+
+    min_energy_reference:
+      name: Énergie minimale à assurer sur 24h (kWh)
+      description: Seuil minimal vital d’énergie que l’équipement doit avoir consommé sur 24h.
+      default: 3
+      selector:
+        number:
+          min: 0
+          max: 20
+          step: 0.1
+          unit_of_measurement: kWh
+    
     energy_24h_sensor:
       name: Énergie consommée sur 24h
       description: >
@@ -29,8 +42,8 @@ blueprint:
         Recommandé : créer via l’intégration «Utility Meter» depuis l’interface Home Assistant.
       selector:
         entity:
-          domain: sensor
-
+          domain: sensor    
+    
     solar_forecast_sensor:
       name: Prévision de production solaire sur 24h (kWh)
       description: Capteur donnant la prévision d’énergie solaire disponible pour la journée.
@@ -50,16 +63,7 @@ blueprint:
           step: 0.1
           unit_of_measurement: kWh
 
-    min_energy_reference:
-      name: Énergie minimale à assurer sur 24h (kWh)
-      description: Seuil minimal vital d’énergie que l’équipement doit avoir consommé sur 24h avant de pouvoir se permettre de s’éteindre.
-      default: 3
-      selector:
-        number:
-          min: 0
-          max: 20
-          step: 0.1
-          unit_of_measurement: kWh
+
 
     debug_mode:
       name: Mode debug
