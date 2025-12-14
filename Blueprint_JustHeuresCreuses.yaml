@@ -56,7 +56,7 @@ blueprint:
 
     min_energy_reference:
       name: Énergie minimale à assurer sur 24h (kWh)
-      description: Seuil minimal vital d’énergie que l’équipement doit avoir consommé sur 24h.
+      description: Seuil minimal vital d’énergie que l’équipement doit avoir consommé sur 24h. Si la consommation de l'appareil n'a pas atteind cette, valeur, l'appareil va etre allume pendant les heures creuses.
       default: 3
       selector:
         number:
