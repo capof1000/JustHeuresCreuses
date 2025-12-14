@@ -20,11 +20,13 @@ L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pa
 - mode debug : boolean , (par default desactive)
 
 ## Fonctionnement
-L'automatisataon va etre declencher chaque minute.
+🚿 concrètement
+Hors heures creuses	                    ->   ➖ aucune action
+Peu de chauffe sur 24h	                ->   🔥 ON (quoi qu’il arrive)
+Chauffe suffisante + bon soleil demain	->   ❌ OFF
+Chauffe suffisante + mauvais soleil	    ->   🔥 ON
 
-L'automatisataon va calculer une variabe interne, appele "Energie de référence", servant a stocker (la consommation quotidienne moyenne de l'equipement pendant la periode de reference) * Pourcentage mini.
 
-L'automatisataon va calculer une variabe interne, appele "Energie de l'equipement sur 24", servant a stocker et calculer  , grace au capteur d'energie fourni (via states.sensor.energy_sensor.history) : la consommation de l'appareil au cours de 24h dernieres heure, exprimee en kWh.
 
 L'automatisatiom ne prend des decisions uniquement lorsque "Capteur de moment de la journée" = Active, deplus
   SI       ("seuil Prevision" < "Capteur de prevision de production") OU ("Energie de référence" < "Energie de l'equipement sur 24"), L'automatisaion va eteindre l'equipement 
