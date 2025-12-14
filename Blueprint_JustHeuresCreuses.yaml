@@ -1,5 +1,5 @@
 blueprint:
-  name: JustHeuresCreuses v0.5.2
+  name: JustHeuresCreuses v0.5.3
   description: >
     L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
   domain: automation
@@ -18,29 +18,17 @@ blueprint:
       name: Énergie consommée sur 24h
       description: >
           Capteur représentant la consommation réelle de l’équipement sur les dernières 24 heures glissantes.
-      
           Pour créer ce capteur (méthode recommandée, fonctionne pour tous les équipements) :
-      
           1) Identifier l’entité **index cumulatif** de votre équipement. Ce compteur ne doit jamais se remettre à zéro.
           ex: sensor.equipement_energy qu'il  faudra remplacer a l'etape suivante !
       
-          2) Créer un **capteur template** via l’interface Home Assistant ou en YAML.
+          2) Créer un **capteur statistic** via l’interface Home Assistant ou en YAML.
              rendez-vous dans : Parametres > Appareils et Services > Entrées > Créer une entree
-             Choisissez "template" puis "capteur"
+             Choisissez "statistic"
              Nom : "Consommation équipement 24h"
-             Etat : {% set current = states('sensor.equipement_energy') | float(0) %}
-                    {% set history_24h = namespace(val=current) %}
-                    {% for s in states.sensor if s.entity_id == 'sensor.equipement_energy' %}
-                    {% if s.last_changed and (as_timestamp(now()) - as_timestamp(s.last_changed)) >= 86400 %}
-                    {% set history_24h.val = s.state | float(0) %}
-                    {% break %}
-                    {% endif %}
-                    {% endfor %}
-                    {{ (current - history_24h.val) | float(0) }}
-              Unité:kWh
-              Classe d'appareil: Energie
-              Classe d'état : Total
-              Appareil : votre equipement (si possible)
+             Entite : selection l'entite repere a l'etape 1
+             statistics Characteristic : Somme des differences
+             Age Maximun : 24H
               
           3) Enregistrer le capteur. selectionne le dans le blueprint.
           ❌ Ne pas utiliser un compteur Utility Meter journalier, qui se remet à zéro à minuit
