@@ -34,7 +34,7 @@ blueprint:
     solar_forecast_sensor:
       name: Prévision de production solaire sur 24h (kWh)
       description: Capteur donnant la prévision d’énergie solaire disponible pour la journée.
-      default: sensor.energy_production_today_2
+      default: sensor.energy_production_today
       selector:
         entity:
           domain: sensor
