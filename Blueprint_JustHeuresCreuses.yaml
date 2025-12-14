@@ -1,5 +1,5 @@
 blueprint:
-  name: JustHeuresCreuses v0.5.6
+  name: JustHeuresCreuses v0.5.7
   description: >
     L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
   domain: automation
@@ -18,7 +18,9 @@ blueprint:
       name: Énergie consommée sur 24h
       description: >
           Capteur représentant la consommation réelle de l’équipement sur les dernières 24 heures glissantes.
+          
           Pour créer ce capteur :
+          
           1) Identifier l’entité **index cumulatif** de votre équipement. Ce compteur ne doit jamais se remettre à zéro.
           ex: sensor.equipement_energy qu'il  faudra remplacer a l'etape suivante !
       
@@ -41,13 +43,16 @@ blueprint:
       name: Capteur Heures Creuses
       description: >
           Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives).
+          
           Pour créer ce capteur :
+          
           1) Créer un **capteur d'heures creuse** via l’interface Home Assistant.
              rendez-vous dans : Parametres > Appareils et Services > Entrées > Créer une entree
              Choisissez "Capteur de moment de la journee"
              Nom : heures_creuses
              Heure d'activation : 0:30:00 (eviter le chevauchement sur 2 jours si usage du forecast solar)
              Heure de desactivation : 5:00:00
+          
           2) Enregistrer le capteur. selectionne le dans le blueprint.        
       default: binary_sensor.heures_creuses
       selector:
