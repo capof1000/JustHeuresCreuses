@@ -40,8 +40,8 @@ blueprint:
     heures_creuses_sensor:
       name: Capteur Heures Creuses
       description: >
-         Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives).
-         Pour créer ce capteur :
+          Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives).
+          Pour créer ce capteur :
           1) Créer un **capteur d'heures creuse** via l’interface Home Assistant.
              rendez-vous dans : Parametres > Appareils et Services > Entrées > Créer une entree
              Choisissez "Capteur de moment de la journee"
