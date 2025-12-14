@@ -12,7 +12,7 @@ L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pa
 - input Boolean/Switch : correspondant a l'equipement a controller
 - Capteur d'energie de l'equipement a controller: il s'agit de l'index d'energie qui s'incremente, il peut etre calculer via l'integration Powercal ou directement fourni par le hardware powermeter.
 - Capteur de moment de la journée : un boolean qui va definir la periode de fonctionnent correspondant aux heures creuses (par default binary_sensor.heures_creuses)
-- Capteur de prevision de production des prochaines 24h, exprime en kWh (par default sensor.energy_production_today_2)
+- Capteur de prevision de production aujourd'hui, exprime en kWh (par default sensor.energy_production_today)
 - Seuil : input numerique , exprime en kWh correspondant au seuil minimun de prevision neceaaire
 ## Parametrage d'entree Avances
 - Periode de reference : imput numerique, exprimant un nombre d'heures. Cette periode sera utilise pour calculer une valeur moyenne de reference , (par default 96)
@@ -25,6 +25,16 @@ Hors heures creuses	                    ->   ➖ aucune action
 Peu de chauffe sur 24h	                ->   🔥 ON (quoi qu’il arrive)
 Chauffe suffisante + bon soleil demain	->   ❌ OFF
 Chauffe suffisante + mauvais soleil	    ->   🔥 ON
+
+
+## Exemple de concret 
+
+| energy_today      | solar_forecast  | résultat                   |
+| ----------------- | --------------- | -------------------------- |
+| 2 kWh < min 5 kWh | 6 kWh > seuil   | **ON (priorité besoin)**   |
+| 6 kWh ≥ min 5 kWh | 6 kWh > seuil   | **OFF (solaire ok)**       |
+| 6 kWh ≥ min 5 kWh | 0.5 kWh < seuil | **ON (pas assez solaire)** |
+
 
 
 
