@@ -16,15 +16,7 @@ blueprint:
 
     heures_creuses_sensor:
       name: Capteur Heures Creuses
-      description: 
-        Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives). 
-        Eviter le warping entre 2 journees !
-        Étapes :
-          - Paramètres > Appareils & services > Entrées > Créer une entrée
-          - Source : capteur de moment de la journée
-          - Nonm : Heures Creuses
-          - Heure d'activation : 00:00
-          - Heure de desactivation : 05:00 
+      description: Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives).
       default: binary_sensor.heures_creuses
       selector:
         entity:
@@ -33,14 +25,8 @@ blueprint:
     energy_24h_sensor:
       name: Énergie consommée sur 24h
       description: >
-          Capteur représentant l’énergie consommée par l’équipement sur 24h.
-          Recommandé : créer ce capteur via l’intégration native «Utility Meter» (Compteur de services publics) depuis l’interface Home Assistant.
-          Étapes :
-          - Paramètres > Appareils & services > Assistants > Utility Meter
-          - Source : capteur d’énergie cumulatif (kWh)
-          - Cycle : Daily
-          - Laisser « Delta values » désactivé
-          
+        Capteur représentant l’énergie consommée par l’équipement sur 24h.
+        Recommandé : créer via l’intégration «Utility Meter» depuis l’interface Home Assistant.
       selector:
         entity:
           domain: sensor
@@ -55,7 +41,7 @@ blueprint:
 
     solar_threshold:
       name: Seuil minimum de production solaire (kWh)
-      description: Si la prévision solaire dépasse ce seuil, l’équipement peut être éteint même si le minimum journalier n’est pas atteint.
+      description: Si la prévision solaire dépasse ce seuil, l’équipement peut être éteint même si le minimum journalier est atteint.
       default: 1
       selector:
         number:
@@ -66,7 +52,7 @@ blueprint:
 
     min_energy_reference:
       name: Énergie minimale à assurer sur 24h (kWh)
-      description: Seuil minimal de consommation sur 24h que l’équipement doit atteindre.
+      description: Seuil minimal vital d’énergie que l’équipement doit avoir consommé sur 24h avant de pouvoir se permettre de s’éteindre.
       default: 3
       selector:
         number:
@@ -77,11 +63,9 @@ blueprint:
 
     debug_mode:
       name: Mode debug
-        description: >
-          Active la journalisation détaillée du fonctionnement du blueprint.
-          Les logs sont envoyés vers le Journal système de Home Assistant
-          (Paramètres > Système > Journaux), avec le tag [JustHeuresCreuses][DEBUG].
-          Utile pour le troubleshooting.
+      description: >
+        Active la journalisation détaillée du fonctionnement du blueprint. 
+        Les logs sont envoyés vers le Journal système de Home Assistant (Paramètres > Système > Journaux) avec le tag [JustHeuresCreuses][DEBUG].
       default: false
       selector:
         boolean: {}
@@ -115,7 +99,21 @@ action:
       - conditions:
           - condition: template
             value_template: >
-              {{ solar_forecast > solar_threshold or energy_today >= min_energy_ref }}
+              {{ energy_today < min_energy_ref }}
+        sequence:
+          - service: >
+              {% if sw_domain == 'switch' %}
+              switch.turn_on
+              {% elif sw_domain == 'input_boolean' %}
+              input_boolean.turn_on
+              {% endif %}
+            target:
+              entity_id: "{{ sw }}"
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ solar_forecast > solar_threshold }}
         sequence:
           - service: >
               {% if sw_domain == 'switch' %}
@@ -125,6 +123,7 @@ action:
               {% endif %}
             target:
               entity_id: "{{ sw }}"
+
     default:
       - service: >
           {% if sw_domain == 'switch' %}
@@ -146,8 +145,8 @@ action:
             [JustHeuresCreuses][DEBUG]
             HC={{ hc_state }}
             | Switch={{ sw_state }}
-            Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }})
+            | Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }})
             | Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }})
-            | Decision={{ 'OFF' if (solar_forecast > solar_threshold or energy_today >= min_energy_ref) else 'ON' }}
+            | Decision={{ 'ON (needs energy)' if energy_today < min_energy_ref else ('OFF (solar ok)' if solar_forecast > solar_threshold else 'ON (no solar)') }}
 
 mode: single
