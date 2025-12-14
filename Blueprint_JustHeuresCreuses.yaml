@@ -22,7 +22,7 @@ blueprint:
           1) Identifier l’entité **index cumulatif** de votre équipement. Ce compteur ne doit jamais se remettre à zéro.
           ex: sensor.equipement_energy qu'il  faudra remplacer a l'etape suivante !
       
-          2) Créer un **capteur statistic** via l’interface Home Assistant ou en YAML.
+          2) Créer un **capteur statistic** via l’interface Home Assistant.
              rendez-vous dans : Parametres > Appareils et Services > Entrées > Créer une entree
              Choisissez "statistic"
              Nom : "Consommation équipement 24h"
@@ -42,7 +42,7 @@ blueprint:
       description: >
         Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives).
          Pour créer ce capteur :
-          1) Créer un **capteur statistic** via l’interface Home Assistant ou en YAML.
+          1) Créer un **capteur d'heures creuse** via l’interface Home Assistant.
              rendez-vous dans : Parametres > Appareils et Services > Entrées > Créer une entree
              Choisissez "Capteur de moment de la journee"
              Nom : heures_creuses
