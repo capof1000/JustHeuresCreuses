@@ -23,7 +23,7 @@
 
 ---
 
-## Fonctionnement (vue synthétique 🚿☀️🌙)
+## Fonctionnement 🚿☀️🌙
 
 | Situation | Décision |
 |---------|----------|
