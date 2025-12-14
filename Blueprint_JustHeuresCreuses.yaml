@@ -16,7 +16,15 @@ blueprint:
 
     heures_creuses_sensor:
       name: Capteur Heures Creuses
-      description: Capteur binaire indiquant quand c'est la période des heures creuses (ON = heures creuses actives).
+      description: 
+        Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives). 
+        Eviter le warping entre 2 journees !
+        Étapes :
+          - Paramètres > Appareils & services > Entrées > Créer une entrée
+          - Source : capteur de moment de la journée
+          - Nonm : Heures Creuses
+          - Heure d'activation : 00:00
+          - Heure de desactivation : 05:00 
       default: binary_sensor.heures_creuses
       selector:
         entity:
@@ -25,8 +33,14 @@ blueprint:
     energy_24h_sensor:
       name: Énergie consommée sur 24h
       description: >
-        Capteur représentant l’énergie consommée par l’équipement sur 24h.
-        Recommandé : créer via l’intégration « Utility Meter » depuis l’interface Home Assistant.
+          Capteur représentant l’énergie consommée par l’équipement sur 24h.
+          Recommandé : créer ce capteur via l’intégration native «Utility Meter» (Compteur de services publics) depuis l’interface Home Assistant.
+          Étapes :
+          - Paramètres > Appareils & services > Assistants > Utility Meter
+          - Source : capteur d’énergie cumulatif (kWh)
+          - Cycle : Daily
+          - Laisser « Delta values » désactivé
+          
       selector:
         entity:
           domain: sensor
