@@ -1,56 +1,150 @@
 # JustHeuresCreuses
 
-L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode ( heures creuses).
+JustHeuresCreuses est un blueprint Home Assistant dont l’objectif est de décider automatiquement
+d’allumer ou d’éteindre un équipement électrique (ex : cumulus / chauffe-eau) pendant les heures
+creuses, en fonction :
+
+- d’un besoin minimal vital sur les 24 dernières heures glissantes
+- des prévisions de production solaire
+
+Objectif principal :
+éviter les douches froides tout en limitant la consommation inutile la nuit.
 
 ## Installation
 
-[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/capof1000/JustHeuresCreuses/refs/heads/main/Blueprint_JustHeuresCreuses.yaml)
+https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/capof1000/JustHeuresCreuses/refs/heads/main/Blueprint_JustHeuresCreuses.yaml
 
+## Principe général
 
+- L’automatisation se déclenche toutes les minutes
+- Elle agit uniquement pendant les heures creuses
+- Elle garantit un minimum d’énergie consommée sur 24h
+- Elle coupe l’équipement si le solaire prévu est suffisant
 
-## Parametrage d'entree Standard
-- input Boolean/Switch : correspondant a l'equipement a controller
-- Capteur d'energie de l'equipement a controller: il s'agit de l'index d'energie qui s'incremente, il peut etre calculer via l'integration Powercal ou directement fourni par le hardware powermeter.
-- Capteur de moment de la journée : un boolean qui va definir la periode de fonctionnent correspondant aux heures creuses (par default binary_sensor.heures_creuses)
-- Capteur de prevision de production aujourd'hui, exprime en kWh (par default sensor.energy_production_today)
-- Seuil : input numerique , exprime en kWh correspondant au seuil minimun de prevision neceaaire
-## Parametrage d'entree Avances
-- Periode de reference : imput numerique, exprimant un nombre d'heures. Cette periode sera utilise pour calculer une valeur moyenne de reference , (par default 96)
-- Pourcentage mini : input numerique exprimant un pourcentage de fonctionnement minimun a assurer sur 24h. (par default 30)
-- mode debug : boolean , (par default desactive)
+## Fonctionnement (vue synthétique)
 
-## Fonctionnement
-🚿 concrètement
-Hors heures creuses	                    ->   ➖ aucune action
-Peu de chauffe sur 24h	                ->   🔥 ON (quoi qu’il arrive)
-Chauffe suffisante + bon soleil demain	->   ❌ OFF
-Chauffe suffisante + mauvais soleil	    ->   🔥 ON
+Hors heures creuses
+-> Aucune action
 
+Consommation 24h insuffisante
+-> ON (priorité vitale)
 
-## Exemple de concret 
+Consommation suffisante + bon solaire
+-> OFF
 
-| energy_today      | solar_forecast  | résultat                   |
-| ----------------- | --------------- | -------------------------- |
-| 2 kWh < min 5 kWh | 6 kWh > seuil   | **ON (priorité besoin)**   |
-| 6 kWh ≥ min 5 kWh | 6 kWh > seuil   | **OFF (solaire ok)**       |
-| 6 kWh ≥ min 5 kWh | 0.5 kWh < seuil | **ON (pas assez solaire)** |
+Consommation suffisante + mauvais solaire
+-> ON
 
+## Flux de décision
 
+Déclenchement (toutes les minutes)
+|
+v
+Heures creuses actives ?
+- NON -> Aucune action
+- OUI -> Lire énergie sur 24h
+           |
+           v
+   Énergie 24h < énergie minimale ?
+   - OUI -> ALLUMER (priorité vitale)
+   - NON -> Lire prévision solaire
+               |
+               v
+       Prévision solaire > seuil ?
+       - OUI -> ÉTEINDRE (solaire suffisant)
+       - NON -> ALLUMER
 
+## Paramétrage du blueprint
 
-L'automatisatiom ne prend des decisions uniquement lorsque "Capteur de moment de la journée" = Active, deplus
-  SI       ("seuil Prevision" < "Capteur de prevision de production") OU ("Energie de référence" < "Energie de l'equipement sur 24"), L'automatisaion va eteindre l'equipement 
-  SINON , L'automatisaion va allumer l'equipement
+### Équipement à contrôler
+Type : switch ou input_boolean
+Exemples :
+- switch.cumulus
+- input_boolean.sim_equipement
 
-L'automatisaion , dans le cas ou le mode debug est active va logguer toutes les variables et entite avec leur valeur, afin de facilier le troubleshooting.
+### Énergie consommée sur 24h (IMPORTANT)
 
-# Probleme / Correction
+Ce capteur doit représenter la consommation réelle sur les dernières 24 heures glissantes.
+Il ne doit jamais se remettre à zéro à minuit.
 
-*Message malformed: invalid template (TemplateSyntaxError: unexpected char '!' at 10) for dictionary value @ data['variables']['energy_now']
--> il faut d’abord stocker toutes les entrées dans des variables
+Méthode recommandée (Statistics via l’interface) :
 
-*Message malformed: not a valid value for dictionary value @ data['actions'][0]['choose'][0]['sequence'][0]['target']['entity_id']
--> Il faut utiliser la syntaxe data_template (ou service_call via template), ou plus simple : mettre la variable dans entity_id: "{{ my_target_switch }}".
-    
+1) Identifier l’index d’énergie cumulatif de l’équipement
+   Exemple : sensor.equipement_energy
+   Ce capteur ne doit jamais se remettre à zéro.
 
+2) Aller dans :
+   Paramètres > Appareils et services > Entrées > Créer une entrée
 
+3) Choisir : Statistic
+
+4) Paramétrer :
+   - Nom : Consommation équipement 24h
+   - Entité source : sensor.equipement_energy
+   - Caractéristique statistique : Somme des différences
+   - Âge maximum : 24 heures
+
+5) Enregistrer et sélectionner ce capteur dans le blueprint
+
+NE PAS utiliser un Utility Meter journalier (reset à minuit),
+sinon la valeur sera fausse pendant les heures creuses nocturnes.
+
+### Capteur Heures Creuses
+
+Capteur binaire indiquant la période d’activation.
+
+Méthode simple via l’interface :
+Paramètres > Appareils et services > Entrées > Créer une entrée
+
+Choisir : Capteur de moment de la journée
+
+Exemple :
+- Nom : heures_creuses
+- Activation : 00:30
+- Désactivation : 05:00
+
+### Énergie minimale à assurer sur 24h (kWh)
+
+Seuil vital garantissant le confort.
+Exemple chauffe-eau : 5 kWh
+
+Si l’énergie consommée sur 24h est inférieure à ce seuil,
+l’équipement sera forcé ON pendant les heures creuses.
+
+### Prévision solaire sur 24h
+
+Capteur de prévision photovoltaïque.
+Exemple : sensor.energy_production_today
+
+### Seuil minimum de production solaire
+
+Si la prévision solaire dépasse ce seuil,
+l’équipement restera éteint pendant les heures creuses.
+
+Sinon, il pourra être allumé si nécessaire.
+
+### Mode debug
+
+Active des logs détaillés visibles dans :
+Paramètres > Système > Journaux
+
+Exemple :
+[JustHeuresCreuses][DEBUG]
+HC=on | Switch=off | Energy24h=3.2 kWh (min 5)
+| Solar=1.1 kWh (seuil 2)
+| Decision=ON (needs energy)
+
+## Exemple concret
+
+Énergie 24h | Solaire prévu | Décision
+2 < 5 kWh   | 6 > seuil    | ON (priorité besoin)
+6 >= 5 kWh  | 6 > seuil    | OFF (solaire OK)
+6 >= 5 kWh  | 0.5 < seuil  | ON (pas assez solaire)
+
+## Résumé
+
+- Minimum vital garanti
+- Optimisation solaire
+- Compatible heures creuses nocturnes
+- Logs debug explicites
+- Idéal pour chauffe-eau / cumulus
