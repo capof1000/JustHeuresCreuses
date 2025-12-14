@@ -140,7 +140,7 @@ action:
     then:
       - service: system_log.write
         data:
-          level: info
+          level: warning
           message: >
             [JustHeuresCreuses][DEBUG]
             HC={{ hc_state }}
