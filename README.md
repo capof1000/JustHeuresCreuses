@@ -4,8 +4,8 @@
 
 - 🔋 d’un **besoin minimal vital** sur les **24 dernières heures glissantes**
 - ☀️ des **prévisions de production solaire**
+- Ideal pour maximiser l'alimetation de ton cumulus avec l'énergie solaire tout en minimisant les douches froides !
 
-Ideal pour maximiser l'alimetation de ton cumulus avec l'energie solaire tout en minimisant les douches froides !
 ---
 
 ## Installation
