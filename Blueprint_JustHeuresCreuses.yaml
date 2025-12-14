@@ -1,10 +1,8 @@
 blueprint:
-  name: JustHeuresCreuses v0.4
+  name: JustHeuresCreuses v0.5
   description: >
     L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
   domain: automation
-
-  
 
   input:
     target_switch:
@@ -25,7 +23,6 @@ blueprint:
         entity:
           domain: sensor    
 
-
     heures_creuses_sensor:
       name: Capteur Heures Creuses
       description: Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives).
@@ -33,8 +30,6 @@ blueprint:
       selector:
         entity:
           domain: binary_sensor
-
-
 
     min_energy_reference:
       name: Énergie minimale à assurer sur 24h (kWh)
@@ -46,15 +41,6 @@ blueprint:
           max: 20
           step: 0.1
           unit_of_measurement: kWh
-    
-    energy_24h_sensor:
-      name: Énergie consommée sur 24h
-      description: >
-        Capteur représentant l’énergie consommée par l’équipement sur 24h.
-        Recommandé : créer via l’intégration «Utility Meter» depuis l’interface Home Assistant.
-      selector:
-        entity:
-          domain: sensor    
     
     solar_forecast_sensor:
       name: Prévision de production solaire sur 24h (kWh)
@@ -74,8 +60,6 @@ blueprint:
           max: 50
           step: 0.1
           unit_of_measurement: kWh
-
-
 
     debug_mode:
       name: Mode debug
@@ -158,11 +142,6 @@ action:
         data:
           level: warning
           message: >
-            [JustHeuresCreuses][DEBUG]
-            HC={{ hc_state }}
-            | Switch={{ sw_state }}
-            | Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }})
-            | Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }})
-            | Decision={{ 'ON (needs energy)' if energy_today < min_energy_ref else ('OFF (solar ok)' if solar_forecast > solar_threshold else 'ON (no solar)') }}
+            [JustHeuresCreuses][DEBUG] HC={{ hc_state }} | Switch={{ sw_state }} | Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }}) | Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }}) | Decision={{ 'ON (needs energy)' if energy_today < min_energy_ref else ('OFF (solar ok)' if solar_forecast > solar_threshold else 'ON (no solar)') }}
 
 mode: single
