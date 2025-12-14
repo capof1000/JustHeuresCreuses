@@ -4,6 +4,8 @@ blueprint:
     L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
   domain: automation
 
+  
+
   input:
     target_switch:
       name: Équipement à contrôler
@@ -13,6 +15,16 @@ blueprint:
           domain:
             - switch
             - input_boolean
+
+    energy_24h_sensor:
+      name: Énergie consommée sur 24h
+      description: >
+        Capteur représentant l’énergie consommée par l’équipement sur 24h.
+        Recommandé : créer via l’intégration «Utility Meter» depuis l’interface Home Assistant.
+      selector:
+        entity:
+          domain: sensor    
+
 
     heures_creuses_sensor:
       name: Capteur Heures Creuses
