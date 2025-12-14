@@ -5,6 +5,7 @@
 - 🔋 d’un **besoin minimal vital** sur les **24 dernières heures glissantes**
 - ☀️ des **prévisions de production solaire**
 
+Ideal pour maximiser l'alimetation de ton cumulus avec l'energie solaire tout en minimisant les douches froides !
 ---
 
 ## Installation
@@ -167,14 +168,3 @@ HC=on | Switch=off | Energy24h=3.2 kWh (min 5)
 | 2 < 5 kWh | 6 > seuil | 🔥 ON (priorité besoin) |
 | 6 ≥ 5 kWh | 6 > seuil | ❌ OFF (solaire OK) |
 | 6 ≥ 5 kWh | 0.5 < seuil | 🔥 ON (pas assez solaire) |
-
----
-
-## Résumé
-
-✔️ Minimum vital garanti  
-✔️ Optimisation solaire  
-✔️ Compatible heures creuses nocturnes  
-✔️ Logs debug explicites  
-✔️ Idéal pour chauffe-eau / cumulus
-
