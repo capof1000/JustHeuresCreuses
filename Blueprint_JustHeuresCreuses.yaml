@@ -1,5 +1,5 @@
 blueprint:
-  name: JustHeuresCreuses v0.5.4
+  name: JustHeuresCreuses v0.5.5
   description: >
     L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
   domain: automation
@@ -75,7 +75,7 @@ blueprint:
 
     solar_threshold:
       name: Seuil minimum de production solaire (kWh)
-      description: Si la prévision solaire dépasse ce seuil, l’équipement peut être éteint même si le minimum journalier est atteint.
+      description: Si la prévision solaire dépasse cette valeur, l’équipement restera eteint pendant les heureus creuses.
       default: 1
       selector:
         number:
