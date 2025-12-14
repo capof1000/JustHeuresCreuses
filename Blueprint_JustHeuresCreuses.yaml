@@ -16,7 +16,7 @@ blueprint:
 
     energy_24h_sensor:
       name: Énergie consommée sur 24h
-        description: >
+      description: >
           Capteur représentant la consommation réelle de l’équipement sur les dernières 24 heures glissantes.
       
           Pour créer ce capteur (méthode recommandée, fonctionne pour tous les équipements) :
