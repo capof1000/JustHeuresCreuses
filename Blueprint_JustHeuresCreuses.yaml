@@ -1,5 +1,5 @@
 blueprint:
-  name: JustHeuresCreuses v0.5
+  name: JustHeuresCreuses v0.5.1
   description: >
     L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
   domain: automation
@@ -16,9 +16,40 @@ blueprint:
 
     energy_24h_sensor:
       name: Énergie consommée sur 24h
-      description: >
-        Capteur représentant l’énergie consommée par l’équipement sur 24h.
-        Recommandé : créer via l’intégration «Utility Meter» depuis l’interface Home Assistant.
+        description: >
+          Capteur représentant la consommation réelle de l’équipement sur les dernières 24 heures glissantes.
+      
+          Pour créer ce capteur (méthode recommandée, fonctionne pour tous les équipements) :
+      
+          1) Identifier l’entité **index cumulatif** de votre équipement 
+             (ex: sensor.equipement_energy). Ce compteur ne doit jamais se remettre à zéro.
+      
+          2) Créer un **capteur template** via l’interface Home Assistant ou en YAML.
+             Exemple de template à copier-coller :
+      
+             sensor:
+               - platform: template
+                 sensors:
+                   energie_24h:
+                     friendly_name: "Consommation équipement 24h"
+                     unit_of_measurement: "kWh"
+                     value_template: >
+                       {% set current = states('sensor.equipement_energy') | float(0) %}
+                       {% set history_24h = namespace(val=current) %}
+                       {% for s in states('sensor.equipement_energy') | reverse %}
+                         {% if (as_timestamp(now()) - as_timestamp(s.last_changed)) >= 86400 %}
+                           {% set history_24h.val = s.state | float(0) %}
+                           {% break %}
+                         {% endif %}
+                       {% endfor %}
+                       {{ current - history_24h.val }}
+      
+          3) Enregistrer le capteur. Il sera utilisé comme `energy_24h_sensor` dans le blueprint.
+             ⚠ Important : ce capteur doit se mettre à jour régulièrement pour que le blueprint
+             déclenche correctement l’équipement pendant les heures creuses.
+      
+          ❌ Ne pas utiliser un compteur Utility Meter journalier, qui se remet à zéro à minuit
+             et donnera une valeur incorrecte pendant les heures creuses nocturnes.
       selector:
         entity:
           domain: sensor    
