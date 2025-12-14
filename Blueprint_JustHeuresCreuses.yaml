@@ -1,5 +1,5 @@
 blueprint:
-  name: JustHeuresCreuses v0.3
+  name: JustHeuresCreuses v0.4
   description: >
     L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
   domain: automation
