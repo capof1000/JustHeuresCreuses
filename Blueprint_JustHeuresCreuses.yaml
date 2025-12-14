@@ -63,7 +63,11 @@ blueprint:
 
     debug_mode:
       name: Mode debug
-      description: Active la journalisation détaillée pour suivre toutes les variables et décisions du blueprint.
+        description: >
+          Active la journalisation détaillée du fonctionnement du blueprint.
+          Les logs sont envoyés vers le Journal système de Home Assistant
+          (Paramètres > Système > Journaux), avec le tag [JustHeuresCreuses][DEBUG].
+          Utile pour le troubleshooting.
       default: false
       selector:
         boolean: {}
