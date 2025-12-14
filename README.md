@@ -17,7 +17,7 @@
 ## Principe général
 
 - ⏱ L’automatisation se déclenche **toutes les minutes**
-- 🌙 Elle agit **uniquement pendant les heures creuses**
+- 🌙 Elle agit **uniquement pendant les heures creuses** que l'on a defini.
 - 🔋 Elle garantit un **minimum d’énergie consommée sur 24h**
 - ☀️ Elle coupe l’équipement si le **solaire prévu est suffisant**
 
