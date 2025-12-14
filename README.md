@@ -1,12 +1,12 @@
 # JustHeuresCreuses
 
-🚿☀️ **JustHeuresCreuses** est un blueprint Home Assistant dont l’objectif est de décider automatiquement **d’allumer ou d’éteindre un équipement électrique** (ex : cumulus / chauffe-eau) pendant les **heures creuses**, en fonction :
+☀️ **JustHeuresCreuses** est un blueprint Home Assistant dont l’objectif est de décider automatiquement **d’allumer ou d’éteindre un équipement électrique** (ex : cumulus / chauffe-eau) pendant les **heures creuses**, en fonction :
 
 - 🔋 d’un **besoin minimal vital** sur les **24 dernières heures glissantes**
 - ☀️ des **prévisions de production solaire**
 
 🎯 Objectif principal :  
-**éviter les douches froides** tout en **limitant la consommation inutile la nuit**.
+**éviter les douches froides** 🚿 tout en **limitant la consommation inutile la nuit**.
 
 ---
 
