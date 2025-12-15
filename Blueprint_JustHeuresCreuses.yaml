@@ -1,9 +1,8 @@
 blueprint:
-  name: JustHeuresCreuses v0.5.7
+  name: JustHeuresCreuses v0.5.8
   description: >
     L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
   domain: automation
-
   input:
     target_switch:
       name: Équipement à contrôler
@@ -13,52 +12,21 @@ blueprint:
           domain:
             - switch
             - input_boolean
-
     energy_24h_sensor:
       name: Énergie consommée sur 24h
       description: >
-          Capteur représentant la consommation réelle de l’équipement sur les dernières 24 heures glissantes.
-          
-          Pour créer ce capteur :
-          
-          1) Identifier l’entité **index cumulatif** de votre équipement. Ce compteur ne doit jamais se remettre à zéro.
-          ex: sensor.equipement_energy qu'il  faudra remplacer a l'etape suivante !
-      
-          2) Créer un **capteur statistic** via l’interface Home Assistant.
-             rendez-vous dans : Parametres > Appareils et Services > Entrées > Créer une entree
-             Choisissez "statistic"
-             Nom : "Consommation équipement 24h"
-             Entite : selection l'entite repere a l'etape 1
-             statistics Characteristic : Somme des differences
-             Age Maximun : 24H
-              
-          3) Enregistrer le capteur. selectionne le dans le blueprint.
-          ❌ Ne pas utiliser un compteur Utility Meter journalier, qui se remet à zéro à minuit
-          et donnera une valeur incorrecte pendant les heures creuses nocturnes.
+        Capteur représentant la consommation réelle de l’équipement sur les dernières 24 heures glissantes. Pour créer ce capteur : 1) Identifier l’entité **index cumulatif** de votre équipement. Ce compteur ne doit jamais se remettre à zéro. ex: sensor.equipement_energy qu'il faudra remplacer a l'etape suivante ! 2) Créer un **capteur statistic** via l’interface Home Assistant.
       selector:
         entity:
-          domain: sensor    
-
+          domain: sensor
     heures_creuses_sensor:
       name: Capteur Heures Creuses
       description: >
-          Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives).
-          
-          Pour créer ce capteur :
-          
-          1) Créer un **capteur d'heures creuse** via l’interface Home Assistant.
-             rendez-vous dans : Parametres > Appareils et Services > Entrées > Créer une entree
-             Choisissez "Capteur de moment de la journee"
-             Nom : heures_creuses
-             Heure d'activation : 0:30:00 (eviter le chevauchement sur 2 jours si usage du forecast solar)
-             Heure de desactivation : 5:00:00
-          
-          2) Enregistrer le capteur. selectionne le dans le blueprint.        
+        Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives). Pour créer ce capteur : 1) Créer un **capteur d'heures creuse** via l’interface Home Assistant.
       default: binary_sensor.heures_creuses
       selector:
         entity:
           domain: binary_sensor
-
     min_energy_reference:
       name: Énergie minimale à assurer sur 24h (kWh)
       description: Seuil minimal vital d’énergie que l’équipement doit avoir consommé sur 24h. Si la consommation de l'appareil n'a pas atteind cette, valeur, l'appareil va etre allume pendant les heures creuses.
@@ -69,7 +37,6 @@ blueprint:
           max: 20
           step: 0.1
           unit_of_measurement: kWh
-    
     solar_forecast_sensor:
       name: Prévision de production solaire sur 24h (kWh)
       description: Capteur donnant la prévision d’énergie solaire disponible pour la journée.
@@ -77,7 +44,6 @@ blueprint:
       selector:
         entity:
           domain: sensor
-
     solar_threshold:
       name: Seuil minimum de production solaire (kWh)
       description: Si la prévision solaire dépasse cette valeur, l’équipement restera eteint pendant les heureus creuses.
@@ -88,25 +54,19 @@ blueprint:
           max: 50
           step: 0.1
           unit_of_measurement: kWh
-
     debug_mode:
       name: Mode debug
       description: >
-        Active la journalisation détaillée du fonctionnement du blueprint. 
-        Les logs sont envoyés vers le Journal système de Home Assistant (Paramètres > Système > Journaux) avec le tag [JustHeuresCreuses][DEBUG].
+        Active la journalisation détaillée du fonctionnement du blueprint. Les logs sont envoyés vers le Journal système de Home Assistant (Paramètres > Système > Journaux) avec le tag [JustHeuresCreuses][DEBUG].
       default: false
       selector:
         boolean: {}
-
 trigger:
   - platform: time_pattern
     minutes: "/1"
-
-condition:
-  - condition: state
+  - platform: state
     entity_id: !input heures_creuses_sensor
-    state: "on"
-
+condition: []
 variables:
   sw: !input target_switch
   hc: !input heures_creuses_sensor
@@ -115,53 +75,70 @@ variables:
   solar_threshold: !input solar_threshold
   min_energy_ref: !input min_energy_reference
   debug: !input debug_mode
-
   energy_today: "{{ states(energy_24h) | float(0) }}"
   solar_forecast: "{{ states(solar_sensor) | float(0) }}"
   hc_state: "{{ states(hc) }}"
   sw_state: "{{ states(sw) }}"
   sw_domain: "{{ sw.split('.')[0] }}"
-
 action:
   - choose:
+      # 🔴 Sortie des heures creuses → éteindre l’équipement
       - conditions:
-          - condition: template
-            value_template: >
-              {{ energy_today < min_energy_ref }}
+          - condition: state
+            entity_id: !input heures_creuses_sensor
+            state: "off"
         sequence:
           - service: >
               {% if sw_domain == 'switch' %}
-              switch.turn_on
+                switch.turn_off
               {% elif sw_domain == 'input_boolean' %}
-              input_boolean.turn_on
+                input_boolean.turn_off
               {% endif %}
             target:
               entity_id: "{{ sw }}"
-
+      # 🟢 Logique existante quand on est encore en heures creuses
       - conditions:
-          - condition: template
-            value_template: >
-              {{ solar_forecast > solar_threshold }}
+          - condition: state
+            entity_id: !input heures_creuses_sensor
+            state: "on"
+            # On vérifie les conditions d’énergie/solaire seulement si on est en heures creuses
         sequence:
-          - service: >
-              {% if sw_domain == 'switch' %}
-              switch.turn_off
-              {% elif sw_domain == 'input_boolean' %}
-              input_boolean.turn_off
-              {% endif %}
-            target:
-              entity_id: "{{ sw }}"
-
-    default:
-      - service: >
-          {% if sw_domain == 'switch' %}
-          switch.turn_on
-          {% elif sw_domain == 'input_boolean' %}
-          input_boolean.turn_on
-          {% endif %}
-        target:
-          entity_id: "{{ sw }}"
-
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: >
+                      {{ energy_today < min_energy_ref }}
+                sequence:
+                  - service: >
+                      {% if sw_domain == 'switch' %}
+                        switch.turn_on
+                      {% elif sw_domain == 'input_boolean' %}
+                        input_boolean.turn_on
+                      {% endif %}
+                    target:
+                      entity_id: "{{ sw }}"
+              - conditions:
+                  - condition: template
+                    value_template: >
+                      {{ solar_forecast > solar_threshold }}
+                sequence:
+                  - service: >
+                      {% if sw_domain == 'switch' %}
+                        switch.turn_off
+                      {% elif sw_domain == 'input_boolean' %}
+                        input_boolean.turn_off
+                      {% endif %}
+                    target:
+                      entity_id: "{{ sw }}"
+            default:
+              - service: >
+                  {% if sw_domain == 'switch' %}
+                    switch.turn_on
+                  {% elif sw_domain == 'input_boolean' %}
+                    input_boolean.turn_on
+                  {% endif %}
+                target:
+                  entity_id: "{{ sw }}"
   - if:
       - condition: template
         value_template: "{{ debug }}"
@@ -169,7 +146,6 @@ action:
       - service: system_log.write
         data:
           level: warning
-          message: >
-            [JustHeuresCreuses][DEBUG] HC={{ hc_state }} | Switch={{ sw_state }} | Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }}) | Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }}) | Decision={{ 'ON (needs energy)' if energy_today < min_energy_ref else ('OFF (solar ok)' if solar_forecast > solar_threshold else 'ON (no solar)') }}
-
+          message: >-
+            [JustHeuresCreuses][DEBUG] HC={{ hc_state }} | Switch={{ sw_state }} | Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }}) | Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }}) | Decision={{ 'OFF (hors HC)' if hc_state == 'off' else ('ON (needs energy)' if energy_today < min_energy_ref else ('OFF (solar ok)' if solar_forecast > solar_threshold else 'ON (no solar)')) }}
 mode: single
