@@ -1,7 +1,8 @@
 blueprint:
   name: JustHeuresCreuses v0.5.9
   description: >
-    L'objectif est de creer un blueprint qui va prendre la decision d'activer (ou pas) un appareil, en fonction des previsions de la production solaire pendant une periode (heures creuses).
+    Active un appareil pendant une plage horaire définie uniquement si sa consommation
+    sur les dernières 24h n'a pas atteint le seuil minimal défini.
   domain: automation
   input:
     target_switch:
@@ -15,21 +16,23 @@ blueprint:
     energy_24h_sensor:
       name: Énergie consommée sur 24h
       description: >
-        Capteur représentant la consommation réelle de l'équipement sur les dernières 24 heures glissantes. Pour créer ce capteur : 1) Identifier l'entité **index cumulatif** de votre équipement. Ce compteur ne doit jamais se remettre à zéro. ex: sensor.equipement_energy qu'il faudra remplacer a l'etape suivante ! 2) Créer un **capteur statistic** via l'interface Home Assistant.
+        Capteur représentant la consommation réelle de l'équipement sur les dernières 24 heures glissantes.
       selector:
         entity:
           domain: sensor
-    heures_creuses_sensor:
-      name: Capteur Heures Creuses
+    moment_sensor:
+      name: Capteur de plage horaire
       description: >
-        Capteur binaire indiquant la période des heures creuses (ON = heures creuses actives). Pour créer ce capteur : 1) Créer un **capteur d'heures creuse** via l'interface Home Assistant.
-      default: binary_sensor.heures_creuses
+        Capteur binaire indiquant la plage horaire active (ON = plage active).
+        Peut être un capteur d'heures creuses, une plage tarifaire, une plage solaire, etc.
       selector:
         entity:
           domain: binary_sensor
     min_energy_reference:
       name: Énergie minimale à assurer sur 24h (kWh)
-      description: Seuil minimal vital d'énergie que l'équipement doit avoir consommé sur 24h. Si la consommation de l'appareil n'a pas atteind cette valeur, l'appareil va etre allume pendant les heures creuses.
+      description: >
+        Si la consommation des dernières 24h est inférieure à ce seuil,
+        l'appareil sera allumé pendant la plage horaire active.
       default: 3
       selector:
         number:
@@ -37,27 +40,11 @@ blueprint:
           max: 20
           step: 0.1
           unit_of_measurement: kWh
-    solar_forecast_sensor:
-      name: Prévision de production solaire sur 24h (kWh)
-      description: Capteur donnant la prévision d'énergie solaire disponible pour la journée.
-      default: sensor.energy_production_today
-      selector:
-        entity:
-          domain: sensor
-    solar_threshold:
-      name: Seuil minimum de production solaire (kWh)
-      description: Si la prévision solaire dépasse cette valeur, l'équipement restera eteint pendant les heures creuses.
-      default: 1
-      selector:
-        number:
-          min: 0
-          max: 50
-          step: 0.1
-          unit_of_measurement: kWh
     debug_mode:
       name: Mode debug
       description: >
-        Active la journalisation détaillée du fonctionnement du blueprint. Les logs sont envoyés vers le Journal système de Home Assistant (Paramètres > Système > Journaux) avec le tag [JustHeuresCreuses][DEBUG].
+        Active la journalisation détaillée dans le Journal système de Home Assistant
+        avec le tag [JustMomentDuJour][DEBUG].
       default: false
       selector:
         boolean: {}
@@ -66,32 +53,29 @@ trigger:
   - platform: time_pattern
     minutes: "/1"
   - platform: state
-    entity_id: !input heures_creuses_sensor
+    entity_id: !input moment_sensor
 
 condition: []
 
 variables:
   sw: !input target_switch
-  hc: !input heures_creuses_sensor
+  moment: !input moment_sensor
   energy_24h: !input energy_24h_sensor
-  solar_sensor: !input solar_forecast_sensor
-  solar_threshold: !input solar_threshold
   min_energy_ref: !input min_energy_reference
   debug: !input debug_mode
   energy_today: "{{ states(energy_24h) | float(0) }}"
-  solar_forecast: "{{ states(solar_sensor) | float(0) }}"
-  hc_state: "{{ states(hc) }}"
+  moment_state: "{{ states(moment) }}"
   sw_state: "{{ states(sw) }}"
   sw_domain: "{{ sw.split('.')[0] }}"
 
 action:
   - choose:
-      # 🔴 Sortie des heures creuses → éteindre uniquement sur la transition on → off
+      # 🔴 Fin de la plage horaire (on → off) : éteindre l'appareil
       - conditions:
           - condition: template
             value_template: >
               {{ trigger.platform == 'state'
-                 and trigger.entity_id == hc
+                 and trigger.entity_id == moment
                  and trigger.to_state.state == 'off' }}
         sequence:
           - service: >
@@ -103,18 +87,17 @@ action:
             target:
               entity_id: "{{ sw }}"
 
-      # 🟢 Logique pendant les heures creuses (time_pattern ou entrée en HC)
+      # 🟢 Pendant la plage horaire active
       - conditions:
           - condition: state
-            entity_id: !input heures_creuses_sensor
+            entity_id: !input moment_sensor
             state: "on"
         sequence:
           - choose:
-              # ⚡ Priorité : énergie insuffisante → allumer
+              # ⚡ Énergie insuffisante → allumer
               - conditions:
                   - condition: template
-                    value_template: >
-                      {{ energy_today < min_energy_ref }}
+                    value_template: "{{ energy_today < min_energy_ref }}"
                 sequence:
                   - service: >
                       {% if sw_domain == 'switch' %}
@@ -124,27 +107,13 @@ action:
                       {% endif %}
                     target:
                       entity_id: "{{ sw }}"
-              # ☀️ Solaire suffisant → éteindre
-              - conditions:
-                  - condition: template
-                    value_template: >
-                      {{ solar_forecast > solar_threshold }}
-                sequence:
-                  - service: >
-                      {% if sw_domain == 'switch' %}
-                        switch.turn_off
-                      {% elif sw_domain == 'input_boolean' %}
-                        input_boolean.turn_off
-                      {% endif %}
-                    target:
-                      entity_id: "{{ sw }}"
-            # 🌑 Pas assez de solaire et énergie insuffisante → allumer
+            # ✅ Énergie suffisante → éteindre
             default:
               - service: >
                   {% if sw_domain == 'switch' %}
-                    switch.turn_on
+                    switch.turn_off
                   {% elif sw_domain == 'input_boolean' %}
-                    input_boolean.turn_on
+                    input_boolean.turn_off
                   {% endif %}
                 target:
                   entity_id: "{{ sw }}"
@@ -158,6 +127,6 @@ action:
         data:
           level: warning
           message: >-
-            [JustHeuresCreuses][DEBUG] v0.5.9 | HC={{ hc_state }} | Switch={{ sw_state }} | Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }}) | Solar={{ solar_forecast }} kWh (seuil {{ solar_threshold }}) | Trigger={{ trigger.platform }}{% if trigger.platform == 'state' %} ({{ trigger.from_state.state }} → {{ trigger.to_state.state }}){% endif %} | Decision={{ 'OFF (transition HC→off)' if (trigger.platform == 'state' and trigger.to_state.state == 'off') else ('Hors HC - aucune action' if hc_state == 'off' else ('ON (needs energy)' if energy_today < min_energy_ref else ('OFF (solar ok)' if solar_forecast > solar_threshold else 'ON (no solar)'))) }}
+            [JustMomentDuJour][DEBUG] v1.0.0 | Plage={{ moment_state }} | Switch={{ sw_state }} | Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }}) | Trigger={{ trigger.platform }}{% if trigger.platform == 'state' %} ({{ trigger.from_state.state }} → {{ trigger.to_state.state }}){% endif %} | Decision={{ 'OFF (fin de plage)' if (trigger.platform == 'state' and trigger.to_state.state == 'off') else ('Hors plage - aucune action' if moment_state == 'off' else ('ON (needs energy)' if energy_today < min_energy_ref else 'OFF (energy ok)')) }}
 
 mode: single
