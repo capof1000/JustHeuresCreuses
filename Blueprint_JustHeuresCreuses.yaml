@@ -127,6 +127,6 @@ action:
         data:
           level: warning
           message: >-
-            [JustMomentDuJour][DEBUG] v1.0.0 | Plage={{ moment_state }} | Switch={{ sw_state }} | Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }}) | Trigger={{ trigger.platform }}{% if trigger.platform == 'state' %} ({{ trigger.from_state.state }} → {{ trigger.to_state.state }}){% endif %} | Decision={{ 'OFF (fin de plage)' if (trigger.platform == 'state' and trigger.to_state.state == 'off') else ('Hors plage - aucune action' if moment_state == 'off' else ('ON (needs energy)' if energy_today < min_energy_ref else 'OFF (energy ok)')) }}
+            [JustMomentDuJour][DEBUG] {{ now().strftime('%Y-%m-%d %H:%M:%S') }} | v1.0.0 | Plage={{ moment_state }} | Switch={{ sw_state }} | Energy24h={{ energy_today }} kWh (min {{ min_energy_ref }}) | Trigger={{ trigger.platform }}{% if trigger.platform == 'state' %} ({{ trigger.from_state.state }} → {{ trigger.to_state.state }}){% endif %} | Decision={{ 'OFF (fin de plage)' if (trigger.platform == 'state' and trigger.to_state.state == 'off') else ('Hors plage - aucune action' if moment_state == 'off' else ('ON (needs energy)' if energy_today < min_energy_ref else 'OFF (energy ok)')) }}
 
 mode: single
